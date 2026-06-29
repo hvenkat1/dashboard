@@ -187,6 +187,49 @@ input,select,button,textarea{font-family:inherit}
 .text-mu{color:var(--mu)}.text-bold{font-weight:600}
 .mt-8{margin-top:8px}.mb-8{margin-bottom:8px}
 .p-12{padding:12px}
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 480px) {
+  .page,.sbody{padding-left:10px;padding-right:10px}
+  .cal-grid{gap:2px;padding:4px 6px 8px}
+  .cc{border-radius:6px}
+  .cnum{font-size:12px}
+  .stat-grid{grid-template-columns:repeat(3,1fr);gap:6px}
+  .stat-v{font-size:15px}
+  .mgrid{gap:6px}
+  .mc-val{font-size:16px}
+  .wgrid{grid-template-columns:1fr 1fr;gap:6px}
+  .wgrid .wf:last-child{grid-column:1 / -1}
+  .food-search{flex-direction:column}
+  .food-search input{width:100%}
+  .search-btn{width:100%}
+  .form3{grid-template-columns:1fr 80px auto}
+  .lr-actions{flex-direction:column}
+  .lr-actions button{width:100%}
+  .topbar{padding:10px 12px}
+  .topbar-title{font-size:14px}
+  .card-body{padding:10px 12px}
+  .card-hdr{padding:10px 12px}
+  .daybody{padding:12px}
+  .btn{padding:12px;font-size:13px}
+  .st-row{gap:6px}
+  .stb{font-size:11px;padding:9px 2px}
+  .insight-card{padding:12px}
+  .week-dots{gap:4px}
+  .wd{width:30px;height:30px;font-size:8px}
+  .meal-type-row{gap:5px}
+  .mt-btn{padding:6px 10px;font-size:11px}
+  .wbtns{gap:4px}
+  .wb{padding:6px 9px;font-size:11px}
+  .pbtns{gap:4px}
+  .pb{padding:6px 8px;font-size:10px}
+}
+/* Fix scroll on iOS */
+.screen{-webkit-overflow-scrolling:touch}
+.sbody{-webkit-overflow-scrolling:touch;overflow-y:auto}
+/* Prevent zoom on input focus */
+input,select,textarea{font-size:16px!important}
+.wf input,.wf select{font-size:14px!important}
 </style>
 </head>
 <body>
@@ -760,54 +803,175 @@ function doFoodLookup(){
   var loading=D('loading');loading.appendChild(D('spinner'));loading.appendChild(T('span','','Looking up '+query+' ...'));
   area.appendChild(loading);
 
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-6',
-      max_tokens:400,
-      messages:[{role:'user',content:'Give me the nutritional info for: "'+query+'"\nRespond ONLY with a JSON object, no markdown, no explanation. Format:\n{"name":"food name","quantity":"quantity description","kcal":number,"protein_g":number,"carbs_g":number,"fat_g":number,"notes":"brief note about accuracy"}\nFor Indian dishes like sambar, kootu, biryani etc use standard home-cooked portions. Be accurate.'}]
-    })
-  }).then(function(r){return r.json();}).then(function(data){
+  // Indian food database - common dishes with standard portions
+  var indianDB={
+    'rice':{'100g':{k:130,p:2.7,c:28,fat:0.3},'1 cup cooked':{k:206,p:4.3,c:45,fat:0.4},'200g':{k:260,p:5.4,c:56,fat:0.6},'400g':{k:520,p:10.8,c:112,fat:1.2}},
+    'sambar':{'1 cup':{k:80,p:4,c:12,fat:2},'100ml':{k:40,p:2,c:6,fat:1},'half cup':{k:40,p:2,c:6,fat:1}},
+    'mor kuzhambu':{'1 cup':{k:60,p:2,c:8,fat:2},'100ml':{k:35,p:1.5,c:5,fat:1.5}},
+    'rasam':{'1 cup':{k:45,p:2,c:7,fat:1},'100ml':{k:25,p:1,c:4,fat:0.5}},
+    'dal':{'1 cup':{k:180,p:12,c:28,fat:3},'100g':{k:120,p:8,c:18,fat:2}},
+    'kootu':{'1 cup':{k:120,p:6,c:16,fat:4},'100g':{k:90,p:4,c:12,fat:3}},
+    'idli':{'1 piece':{k:80,p:2,c:16,fat:0.5},'2 pieces':{k:160,p:4,c:32,fat:1},'3 pieces':{k:240,p:6,c:48,fat:1.5}},
+    'dosa':{'1 plain':{k:168,p:4,c:30,fat:4},'1 masala':{k:220,p:5,c:36,fat:7},'half masala':{k:110,p:2.5,c:18,fat:3.5},'1 rava':{k:175,p:4,c:28,fat:5},'half rava':{k:88,p:2,c:14,fat:2.5}},
+    'upma':{'1 cup':{k:180,p:4,c:32,fat:5},'100g':{k:130,p:3,c:23,fat:3.5}},
+    'pongal':{'1 cup':{k:220,p:6,c:38,fat:6}},
+    'curd rice':{'1 cup':{k:180,p:6,c:32,fat:4},'100g':{k:100,p:3.5,c:18,fat:2.5},'half cup':{k:90,p:3,c:16,fat:2}},
+    'chapati':{'1 piece':{k:80,p:3,c:15,fat:1.5},'2 pieces':{k:160,p:6,c:30,fat:3}},
+    'parotta':{'1 piece':{k:180,p:4,c:28,fat:6},'2 pieces':{k:360,p:8,c:56,fat:12}},
+    'biryani veg':{'half plate':{k:350,p:8,c:58,fat:10},'full plate':{k:700,p:16,c:116,fat:20},'quarter plate':{k:175,p:4,c:29,fat:5}},
+    'biryani chicken':{'half plate':{k:420,p:24,c:52,fat:12},'full plate':{k:840,p:48,c:104,fat:24},'quarter plate':{k:210,p:12,c:26,fat:6}},
+    'biryani mutton':{'half plate':{k:460,p:26,c:50,fat:16},'full plate':{k:920,p:52,c:100,fat:32},'quarter plate':{k:230,p:13,c:25,fat:8}},
+    'hyderabadi biryani':{'half plate':{k:375,p:10,c:60,fat:11},'full plate':{k:750,p:20,c:120,fat:22},'quarter plate':{k:188,p:5,c:30,fat:5.5}},
+    'paneer':{'100g':{k:265,p:18,c:3,fat:20},'50g':{k:133,p:9,c:1.5,fat:10}},
+    'paneer butter masala':{'1 serving':{k:320,p:14,c:18,fat:22}},
+    'chicken 65':{'half plate':{k:280,p:22,c:12,fat:16},'full plate':{k:560,p:44,c:24,fat:32},'quarter plate':{k:140,p:11,c:6,fat:8},'100g':{k:220,p:18,c:10,fat:13}},
+    'chicken curry':{'1 serving':{k:280,p:26,c:8,fat:16},'half serving':{k:140,p:13,c:4,fat:8}},
+    'chicken lollipop':{'1 piece':{k:90,p:8,c:4,fat:5},'2 pieces':{k:180,p:16,c:8,fat:10},'3 pieces':{k:270,p:24,c:12,fat:15}},
+    'prawn':{'100g':{k:100,p:18,c:1,fat:2},'half plate':{k:180,p:24,c:8,fat:6},'quarter plate':{k:90,p:12,c:4,fat:3}},
+    'fish curry':{'1 serving':{k:200,p:22,c:6,fat:10}},
+    'egg boiled':{'1 egg':{k:78,p:6,c:1,fat:5},'2 eggs':{k:156,p:12,c:2,fat:10},'1.5 eggs':{k:117,p:9,c:1.5,fat:7.5}},
+    'egg fried':{'1 egg':{k:90,p:6,c:1,fat:7},'2 eggs':{k:180,p:12,c:2,fat:14}},
+    'omelette':{'1 egg':{k:95,p:7,c:1,fat:7},'2 egg':{k:190,p:14,c:2,fat:14}},
+    'coffee with milk':{'1 cup':{k:45,p:2,c:5,fat:2},'2 cups':{k:90,p:4,c:10,fat:4},'3 cups':{k:135,p:6,c:15,fat:6}},
+    'coffee without sugar':{'1 cup':{k:20,p:1,c:2,fat:1}},
+    'tea with milk':{'1 cup':{k:35,p:1.5,c:4,fat:1.5},'2 cups':{k:70,p:3,c:8,fat:3}},
+    'milk':{'1 cup':{k:149,p:8,c:12,fat:8},'100ml':{k:62,p:3.2,c:4.8,fat:3.3}},
+    'curd':{'100g':{k:60,p:3.5,c:4.7,fat:3.1},'1 cup':{k:150,p:8,c:11,fat:8}},
+    'banana':{'1 medium':{k:89,p:1.1,c:23,fat:0.3},'1 small':{k:72,p:0.9,c:19,fat:0.2}},
+    'apple':{'1 medium':{k:95,p:0.5,c:25,fat:0.3}},
+    'grapes':{'100g':{k:69,p:0.6,c:18,fat:0.2},'1 cup':{k:104,p:1,c:27,fat:0.2}},
+    'watermelon':{'1 cup':{k:46,p:1,c:11,fat:0.2},'100g':{k:30,p:0.6,c:7.5,fat:0.2}},
+    'biscuit':{'1 piece':{k:35,p:0.5,c:5.5,fat:1.5},'2 pieces':{k:70,p:1,c:11,fat:3},'4 pieces':{k:140,p:2,c:22,fat:6}},
+    'vada':{'1 piece':{k:110,p:4,c:14,fat:5},'2 pieces':{k:220,p:8,c:28,fat:10}},
+    'puri':{'1 piece':{k:110,p:2,c:14,fat:5},'2 pieces':{k:220,p:4,c:28,fat:10}},
+    'mountain dew':{'200ml':{k:88,p:0,c:23,fat:0},'330ml':{k:145,p:0,c:38,fat:0},'500ml':{k:220,p:0,c:57,fat:0}},
+    'coca cola':{'200ml':{k:84,p:0,c:21,fat:0},'330ml':{k:139,p:0,c:35,fat:0}},
+    'coconut water':{'1 cup':{k:46,p:2,c:9,fat:0.5},'200ml':{k:38,p:1.5,c:7.5,fat:0.4}},
+    'peanuts':{'100g':{k:567,p:26,c:16,fat:49},'handful':{k:170,p:8,c:5,fat:15}},
+    'almonds':{'10 pieces':{k:70,p:2.5,c:2.5,fat:6},'100g':{k:579,p:21,c:22,fat:50}},
+    'roti':{'1 piece':{k:80,p:3,c:15,fat:1.5},'2 pieces':{k:160,p:6,c:30,fat:3}},
+    'naan':{'1 piece':{k:260,p:8,c:45,fat:5}},
+    'butter naan':{'1 piece':{k:320,p:8,c:45,fat:12}},
+    'palak paneer':{'1 serving':{k:230,p:12,c:10,fat:17}},
+    'dal makhani':{'1 serving':{k:280,p:14,c:28,fat:14}},
+    'cluster beans':{'100g':{k:26,p:1.8,c:4.8,fat:0.3},'1 cup':{k:35,p:2.4,c:6.4,fat:0.4}},
+    'beans stir fry':{'1 cup':{k:80,p:3,c:12,fat:2}},
+    '555':{'quarter plate':{k:160,p:14,c:6,fat:9},'half plate':{k:320,p:28,c:12,fat:18}},
+    'protein shake':{'1 scoop':{k:120,p:24,c:5,fat:2}},
+  };
+
+  // Try to match query against Indian DB first
+  var queryLower=query.toLowerCase();
+  var matched=null;var matchedKey='';var matchedQty='';
+
+  // Try exact and partial matches
+  var dbKeys=Object.keys(indianDB);
+  for(var ki=0;ki<dbKeys.length;ki++){
+    var key=dbKeys[ki];
+    if(queryLower.indexOf(key)>=0||key.split(' ').every(function(w){return queryLower.indexOf(w)>=0;})){
+      // Find quantity match
+      var qkeys=Object.keys(indianDB[key]);
+      for(var qi=0;qi<qkeys.length;qi++){
+        var qty=qkeys[qi];
+        if(queryLower.indexOf(qty)>=0){
+          matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;
+        }
+      }
+      if(!matched){
+        // Use first quantity as default
+        matched=indianDB[key][qkeys[0]];matchedKey=key;matchedQty=qkeys[0];
+      }
+      break;
+    }
+  }
+
+  if(matched){
     area.innerHTML='';
-    var text=data.content&&data.content[0]?data.content[0].text:'';
-    var clean=text.replace(/```json|```/g,'').trim();
-    var info=JSON.parse(clean);
-    fLookupResult=info;
-    var lr=D('lookup-result');
-    var nameRow=D('row-flex');
-    nameRow.appendChild(T('div','lr-name',info.name+' ('+info.quantity+')'));
-    var kcalBadge=T('div','badge b-done',info.kcal+' kcal');
-    nameRow.appendChild(kcalBadge);lr.appendChild(nameRow);
-    var detail=D('lr-detail');
-    detail.textContent='Protein: '+info.protein_g+'g   Carbs: '+info.carbs_g+'g   Fat: '+info.fat_g+'g';
-    if(info.notes){detail.textContent+='  —  '+info.notes;}
-    lr.appendChild(detail);
-    var actions=D('lr-actions');
-    actions.appendChild(Btn('btn-green','Add to meal',function(){
-      fItems.push({n:info.name+' ('+info.quantity+')',k:info.kcal,p:info.protein_g,c:info.carbs_g,fat:info.fat_g});
-      if(input)input.value='';area.innerHTML='';buildFoodForm();
-    }));
-    actions.appendChild(Btn('btn-blue','Add different qty',function(){
-      var qtyDiv=D('');qtyDiv.style.marginTop='8px';
-      var qRow=D('qty-row');
-      var qIn=Inp('qty-input','text','e.g. 150g or 2 cups');
-      qIn.style.width='140px';
-      qRow.appendChild(qIn);qRow.appendChild(T('span','','of '+info.name));
-      var qBtn=Btn('search-btn','Look up',function(){
-        var newQuery=qIn.value.trim()+' of '+info.name;
-        if(input)input.value=newQuery;area.innerHTML='';doFoodLookupWithQuery(newQuery);
-      });
-      qRow.appendChild(qBtn);qtyDiv.appendChild(qRow);lr.appendChild(qtyDiv);
-    }));
-    lr.appendChild(actions);
-    area.appendChild(lr);
-  }).catch(function(e){
+    showLookupResult(area,{
+      name:matchedKey.charAt(0).toUpperCase()+matchedKey.slice(1),
+      quantity:matchedQty,
+      kcal:matched.k,protein_g:matched.p,carbs_g:matched.c,fat_g:matched.fat,
+      notes:'From Indian food database'
+    });
+    return;
+  }
+
+  // Fall back to Open Food Facts API
+  var searchTerm=query.replace(/\d+g|\d+ml|\d+ g|\d+ ml/g,'').trim();
+  fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(searchTerm)+'&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments,serving_size,quantity')
+  .then(function(r){return r.json();})
+  .then(function(data){
     area.innerHTML='';
-    var err=D('');err.style.cssText='font-size:12px;color:var(--re);padding:8px 0';
-    err.textContent='Could not look up food. Try again.';
-    area.appendChild(err);console.error(e);
+    if(data.products&&data.products.length>0){
+      var p=data.products[0];
+      var n=p.nutriments;
+      // Try to extract quantity from query
+      var qMatch=query.match(/(\d+)\s*(g|ml|kg)/i);
+      var qAmt=qMatch?parseInt(qMatch[1]):100;
+      var qUnit=qMatch?(qMatch[2].toLowerCase()):'g';
+      var per100=n['energy-kcal_100g']||n['energy_100g']?(n['energy-kcal_100g']||n['energy_100g']/4.184):null;
+      if(per100){
+        var ratio=qAmt/100;
+        showLookupResult(area,{
+          name:p.product_name||searchTerm,
+          quantity:qAmt+qUnit,
+          kcal:Math.round(per100*ratio),
+          protein_g:Math.round((n['proteins_100g']||0)*ratio*10)/10,
+          carbs_g:Math.round((n['carbohydrates_100g']||0)*ratio*10)/10,
+          fat_g:Math.round((n['fat_100g']||0)*ratio*10)/10,
+          notes:'From Open Food Facts database'
+        });
+      } else {
+        showManualEntry(area,query);
+      }
+    } else {
+      showManualEntry(area,query);
+    }
+  }).catch(function(){
+    area.innerHTML='';
+    showManualEntry(area,query);
   });
+}
+
+function showLookupResult(area,info){
+  var lr=D('lookup-result');
+  var nameRow=D('row-flex');
+  nameRow.appendChild(T('div','lr-name',info.name+' ('+info.quantity+')'));
+  nameRow.appendChild(T('div','badge b-done',info.kcal+' kcal'));
+  lr.appendChild(nameRow);
+  var detail=D('lr-detail');
+  detail.textContent='Protein: '+info.protein_g+'g   Carbs: '+info.carbs_g+'g   Fat: '+info.fat_g+'g';
+  if(info.notes){var nd=T('div','',info.notes);nd.style.cssText='font-size:10px;color:var(--mu);margin-top:3px';lr.appendChild(nd);}
+  lr.appendChild(detail);
+  var actions=D('lr-actions');
+  actions.appendChild(Btn('btn-green','Add to meal',function(){
+    fItems.push({n:info.name+' ('+info.quantity+')',k:info.kcal,p:info.protein_g,c:info.carbs_g,fat:info.fat_g});
+    var inp=document.getElementById('food-search-input');if(inp)inp.value='';
+    area.innerHTML='';buildFoodForm();
+  }));
+  lr.appendChild(actions);area.appendChild(lr);
+}
+
+function showManualEntry(area,query){
+  var lr=D('lookup-result');
+  var title=T('div','lr-name','Not found: '+query);lr.appendChild(title);
+  var hint=T('div','lr-detail','Enter calories manually below');lr.appendChild(hint);
+  var row=D('');row.style.cssText='display:grid;grid-template-columns:1fr 80px 80px 80px auto;gap:6px;align-items:end;margin-top:8px';
+  function inp2(id,ph){var i=E('input');i.id=id;i.type='number';i.placeholder=ph;i.style.cssText='padding:8px;border:0.5px solid var(--bd);border-radius:7px;font-size:12px;background:var(--bg);color:var(--tx);outline:none;width:100%';return i;}
+  var nameIn=E('input');nameIn.id='man-name';nameIn.placeholder='Food name';nameIn.style.cssText='padding:8px;border:0.5px solid var(--bd);border-radius:7px;font-size:12px;background:var(--bg);color:var(--tx);outline:none;width:100%';nameIn.value=query;
+  var kcalIn=inp2('man-kcal','kcal');
+  var protIn=inp2('man-prot','prot g');
+  var carbIn=inp2('man-carb','carb g');
+  var addBtn=Btn('search-btn','Add',function(){
+    var nm=document.getElementById('man-name');
+    var kc=document.getElementById('man-kcal');
+    var pr=document.getElementById('man-prot');
+    var cb=document.getElementById('man-carb');
+    if(!nm||!kc||!kc.value){showToast('Enter at least a name and kcal');return;}
+    fItems.push({n:nm.value,k:parseInt(kc.value)||0,p:parseFloat(pr&&pr.value?pr.value:0),c:parseFloat(cb&&cb.value?cb.value:0),fat:0});
+    area.innerHTML='';buildFoodForm();
+  });
+  ap(row,nameIn,kcalIn,protIn,carbIn,addBtn);lr.appendChild(row);area.appendChild(lr);
 }
 
 function doFoodLookupWithQuery(query){
@@ -816,35 +980,10 @@ function doFoodLookupWithQuery(query){
   area.innerHTML='';
   var loading=D('loading');loading.appendChild(D('spinner'));loading.appendChild(T('span','','Looking up ...'));
   area.appendChild(loading);
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-6',
-      max_tokens:400,
-      messages:[{role:'user',content:'Give me the nutritional info for: "'+query+'"\nRespond ONLY with a JSON object, no markdown, no explanation. Format:\n{"name":"food name","quantity":"quantity description","kcal":number,"protein_g":number,"carbs_g":number,"fat_g":number,"notes":"brief note"}\nFor Indian dishes use standard home-cooked portions.'}]
-    })
-  }).then(function(r){return r.json();}).then(function(data){
-    area.innerHTML='';
-    var text=data.content&&data.content[0]?data.content[0].text:'';
-    var clean=text.replace(/```json|```/g,'').trim();
-    var info=JSON.parse(clean);
-    fLookupResult=info;
-    var lr=D('lookup-result');
-    var nameRow=D('row-flex');
-    nameRow.appendChild(T('div','lr-name',info.name+' ('+info.quantity+')'));
-    nameRow.appendChild(T('div','badge b-done',info.kcal+' kcal'));
-    lr.appendChild(nameRow);
-    var detail=D('lr-detail');
-    detail.textContent='Protein: '+info.protein_g+'g   Carbs: '+info.carbs_g+'g   Fat: '+info.fat_g+'g';
-    if(info.notes)detail.textContent+='  —  '+info.notes;
-    lr.appendChild(detail);
-    var addBtn=Btn('btn-green','Add to meal',function(){
-      fItems.push({n:info.name+' ('+info.quantity+')',k:info.kcal,p:info.protein_g,c:info.carbs_g,fat:info.fat_g});
-      area.innerHTML='';buildFoodForm();
-    });
-    lr.appendChild(addBtn);area.appendChild(lr);
-  }).catch(function(e){area.innerHTML='';console.error(e);});
+  // Reuse main lookup with the new query
+  var input=document.getElementById('food-search-input');
+  if(input)input.value=query;
+  setTimeout(doFoodLookup,100);
 }
 
 function saveMeal(){
