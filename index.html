@@ -188,6 +188,21 @@ input,select,button,textarea{font-family:inherit}
 .mt-8{margin-top:8px}.mb-8{margin-bottom:8px}
 .p-12{padding:12px}
 
+
+/* LOGIN */
+.pin-display{display:flex;gap:10px;justify-content:center;margin:16px 0}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--bd);transition:background .15s}
+.pin-dot.filled{background:var(--tx);border-color:var(--tx)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.pin-btn{padding:16px;background:var(--s2);border:0.5px solid var(--bd);border-radius:10px;font-size:20px;font-weight:600;cursor:pointer;text-align:center;color:var(--tx)}
+.pin-btn:active{background:var(--bd)}
+.pin-btn.del{font-size:16px;color:var(--mu)}
+.login-title{font-size:16px;font-weight:700;margin-bottom:4px;text-align:center}
+.login-sub{font-size:12px;color:var(--mu);text-align:center;margin-bottom:16px;line-height:1.5}
+.login-input{width:100%;padding:12px;border:0.5px solid var(--bd);border-radius:9px;font-size:14px;background:var(--s2);color:var(--tx);outline:none;margin-bottom:8px}
+.login-input:focus{border-color:var(--tx)}
+.login-link{font-size:12px;color:var(--bl);text-align:center;margin-top:12px;cursor:pointer;background:none;border:none;width:100%}
+
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 480px) {
   .page,.sbody{padding-left:10px;padding-right:10px}
@@ -235,10 +250,22 @@ input,select,textarea{font-size:16px!important}
 <body>
 
 <!-- ═══ SCREEN 1: CALENDAR ═══ -->
-<div class="screen active" id="s-cal">
+<!-- ═══ SCREEN 0: LOGIN ═══ -->
+<div class="screen active" id="s-login">
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;background:var(--tx)">
+    <div style="color:#fff;font-size:24px;font-weight:700;margin-bottom:4px">My Dashboard</div>
+    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px">Training + nutrition tracker</div>
+    <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:360px">
+      <div id="login-content"></div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-cal">
   <div class="topbar">
     <div class="topbar-title">My Dashboard</div>
     <button class="topbar-action" onclick="goInsights()">Insights</button>
+    <button class="topbar-action" style="margin-left:8px;opacity:.6" onclick="showSettings()">&#9881;</button>
   </div>
   <div class="sbody">
     <div class="cal-card">
@@ -822,7 +849,10 @@ function doFoodLookup(){
     'biryani chicken':{'half plate':{k:420,p:24,c:52,fat:12},'full plate':{k:840,p:48,c:104,fat:24},'quarter plate':{k:210,p:12,c:26,fat:6}},
     'biryani mutton':{'half plate':{k:460,p:26,c:50,fat:16},'full plate':{k:920,p:52,c:100,fat:32},'quarter plate':{k:230,p:13,c:25,fat:8}},
     'hyderabadi biryani':{'half plate':{k:375,p:10,c:60,fat:11},'full plate':{k:750,p:20,c:120,fat:22},'quarter plate':{k:188,p:5,c:30,fat:5.5}},
-    'paneer':{'100g':{k:265,p:18,c:3,fat:20},'50g':{k:133,p:9,c:1.5,fat:10}},
+    'paneer':{'100g':{k:265,p:18,c:3,fat:20},'50g':{k:133,p:9,c:1.5,fat:10},'250g':{k:663,p:45,c:7.5,fat:50}},
+    'paneer tikka':{'100g':{k:230,p:16,c:8,fat:15},'250g':{k:575,p:40,c:20,fat:37.5},'200g':{k:460,p:32,c:16,fat:30},'half plate':{k:300,p:21,c:10,fat:19}},
+    'paneer 65':{'100g':{k:245,p:15,c:10,fat:17},'250g':{k:613,p:37.5,c:25,fat:42.5}},
+    'paneer butter masala':{'1 serving':{k:320,p:14,c:18,fat:22},'100g':{k:150,p:6,c:8,fat:10}},
     'paneer butter masala':{'1 serving':{k:320,p:14,c:18,fat:22}},
     'chicken 65':{'half plate':{k:280,p:22,c:12,fat:16},'full plate':{k:560,p:44,c:24,fat:32},'quarter plate':{k:140,p:11,c:6,fat:8},'100g':{k:220,p:18,c:10,fat:13}},
     'chicken curry':{'1 serving':{k:280,p:26,c:8,fat:16},'half serving':{k:140,p:13,c:4,fat:8}},
@@ -863,22 +893,57 @@ function doFoodLookup(){
   // Try to match query against Indian DB first
   var queryLower=query.toLowerCase();
   var matched=null;var matchedKey='';var matchedQty='';
+  var userQtyG=null; // quantity user typed in grams/ml
+
+  // Extract quantity from query - e.g. "250g", "200ml", "2 cups", "half plate"
+  var numGMatch=queryLower.match(/(\d+\.?\d*)\s*(g|gm|gms|gram|grams|ml)/);
+  var numPcMatch=queryLower.match(/(\d+\.?\d*)\s*(cup|cups|piece|pieces|pc|pcs)/);
+  var halfMatch=queryLower.match(/half/);
+  var quarterMatch=queryLower.match(/quarter/);
+  var fullMatch=queryLower.match(/full/);
+
+  if(numGMatch){userQtyG=parseFloat(numGMatch[1]);}
 
   // Try exact and partial matches
   var dbKeys=Object.keys(indianDB);
   for(var ki=0;ki<dbKeys.length;ki++){
     var key=dbKeys[ki];
     if(queryLower.indexOf(key)>=0||key.split(' ').every(function(w){return queryLower.indexOf(w)>=0;})){
-      // Find quantity match
       var qkeys=Object.keys(indianDB[key]);
-      for(var qi=0;qi<qkeys.length;qi++){
-        var qty=qkeys[qi];
-        if(queryLower.indexOf(qty)>=0){
-          matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;
+
+      // If user gave grams and DB has a 100g entry, scale it
+      if(userQtyG){
+        var per100=null;var per100qty='';
+        for(var qi2=0;qi2<qkeys.length;qi2++){
+          if(qkeys[qi2].indexOf('100g')>=0||qkeys[qi2]==='100g'){
+            per100=indianDB[key][qkeys[qi2]];per100qty='100g';break;
+          }
+        }
+        if(per100){
+          var ratio=userQtyG/100;
+          matched={
+            k:Math.round(per100.k*ratio),
+            p:Math.round(per100.p*ratio*10)/10,
+            c:Math.round(per100.c*ratio*10)/10,
+            fat:Math.round(per100.fat*ratio*10)/10
+          };
+          matchedKey=key;matchedQty=userQtyG+'g';
         }
       }
+
+      // If no gram match, try portion keywords
       if(!matched){
-        // Use first quantity as default
+        for(var qi=0;qi<qkeys.length;qi++){
+          var qty=qkeys[qi];
+          if(halfMatch&&qty.indexOf('half')>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
+          if(quarterMatch&&qty.indexOf('quarter')>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
+          if(fullMatch&&qty.indexOf('full')>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
+          if(queryLower.indexOf(qty)>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
+        }
+      }
+
+      // Default to first entry if nothing matched
+      if(!matched){
         matched=indianDB[key][qkeys[0]];matchedKey=key;matchedQty=qkeys[0];
       }
       break;
@@ -891,12 +956,29 @@ function doFoodLookup(){
       name:matchedKey.charAt(0).toUpperCase()+matchedKey.slice(1),
       quantity:matchedQty,
       kcal:matched.k,protein_g:matched.p,carbs_g:matched.c,fat_g:matched.fat,
-      notes:'From Indian food database'
+      notes:'From Indian food database'+(userQtyG?' — scaled to '+userQtyG+'g':'')
     });
     return;
   }
 
+  // Try Claude API if key available
+  if(anthropicKey){
+    fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':anthropicKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:'Nutritional info for: "'+query+'". JSON only, no markdown: {"name":"...","quantity":"...","kcal":0,"protein_g":0,"carbs_g":0,"fat_g":0,"notes":"..."}'}]})
+    }).then(function(r){return r.json();}).then(function(data){
+      area.innerHTML='';
+      var text=data.content&&data.content[0]?data.content[0].text:'';
+      var clean=text.replace(/```json|```/g,'').trim();
+      var info=JSON.parse(clean);
+      showLookupResult(area,info);
+    }).catch(function(){tryOpenFoodFacts();});
+    return;
+  }
+
   // Fall back to Open Food Facts API
+  function tryOpenFoodFacts(){
   var searchTerm=query.replace(/\d+g|\d+ml|\d+ g|\d+ ml/g,'').trim();
   fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(searchTerm)+'&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments,serving_size,quantity')
   .then(function(r){return r.json();})
@@ -905,11 +987,12 @@ function doFoodLookup(){
     if(data.products&&data.products.length>0){
       var p=data.products[0];
       var n=p.nutriments;
-      // Try to extract quantity from query
-      var qMatch=query.match(/(\d+)\s*(g|ml|kg)/i);
-      var qAmt=qMatch?parseInt(qMatch[1]):100;
+      // Extract quantity from original query string
+      var qMatch=query.match(/(\d+\.?\d*)\s*(g|gm|gms|ml|kg)/i);
+      var qAmt=qMatch?parseFloat(qMatch[1]):100;
       var qUnit=qMatch?(qMatch[2].toLowerCase()):'g';
-      var per100=n['energy-kcal_100g']||n['energy_100g']?(n['energy-kcal_100g']||n['energy_100g']/4.184):null;
+      if(qUnit==='kg')qAmt=qAmt*1000;
+      var per100=n['energy-kcal_100g']||(n['energy_100g']?n['energy_100g']/4.184:null);
       if(per100){
         var ratio=qAmt/100;
         showLookupResult(area,{
@@ -919,7 +1002,7 @@ function doFoodLookup(){
           protein_g:Math.round((n['proteins_100g']||0)*ratio*10)/10,
           carbs_g:Math.round((n['carbohydrates_100g']||0)*ratio*10)/10,
           fat_g:Math.round((n['fat_100g']||0)*ratio*10)/10,
-          notes:'From Open Food Facts database'
+          notes:'Open Food Facts — scaled to '+qAmt+qUnit
         });
       } else {
         showManualEntry(area,query);
@@ -931,6 +1014,8 @@ function doFoodLookup(){
     area.innerHTML='';
     showManualEntry(area,query);
   });
+  } // end tryOpenFoodFacts
+  tryOpenFoodFacts();
 }
 
 function showLookupResult(area,info){
@@ -1170,6 +1255,254 @@ document.getElementById('pm').addEventListener('click',function(){cm--;if(cm<0){
 document.getElementById('nm').addEventListener('click',function(){cm++;if(cm>11){cm=0;cy++;}renderCal();});
 document.getElementById('ny').addEventListener('click',function(){cy++;renderCal();});
 
+
+// ── LOGIN / AUTH ──────────────────────────────────────────────────────────
+var currentUserPin = null;
+var anthropicKey = null;
+
+function hashPin(pin) {
+  // Simple hash - not cryptographic but enough for this use case
+  var h = 0;
+  for (var i = 0; i < pin.length; i++) {
+    h = ((h << 5) - h) + pin.charCodeAt(i);
+    h = h & h;
+  }
+  return 'u' + Math.abs(h).toString(36);
+}
+
+function checkStoredLogin() {
+  var storedPin = localStorage.getItem('dash_pin');
+  var storedKey = localStorage.getItem('dash_apikey');
+  if (storedPin && storedKey) {
+    currentUserPin = storedPin;
+    anthropicKey = storedKey;
+    return true;
+  }
+  if (storedPin) {
+    // Has pin but no key locally - load from Firebase
+    currentUserPin = storedPin;
+    return 'load_key';
+  }
+  return false;
+}
+
+
+function showSettings() {
+  var box = document.getElementById('login-box');
+  var loginContent = document.getElementById('login-content');
+  if (!loginContent) return;
+  goScreen('s-login');
+  loginContent.innerHTML = '';
+  loginContent.appendChild(T('div', 'login-title', 'Settings'));
+  loginContent.appendChild(T('div', 'login-sub', 'Update your Anthropic API key or log out'));
+  var keyIn = E('input', 'login-input');
+  keyIn.placeholder = 'Anthropic API key (sk-ant-...)';
+  keyIn.type = 'password';
+  keyIn.value = anthropicKey || '';
+  loginContent.appendChild(keyIn);
+  loginContent.appendChild(Btn('btn', 'Save API key', function() {
+    var key = keyIn.value.trim();
+    anthropicKey = key;
+    localStorage.setItem('dash_apikey', key);
+    if (currentUserPin) {
+      db.collection('users').doc(currentUserPin).update({ apikey: key }).then(function() {
+        showToast('API key saved');goScreen('s-cal');
+      }).catch(function() { showToast('Saved locally'); goScreen('s-cal'); });
+    } else { showToast('Saved'); goScreen('s-cal'); }
+  }));
+  loginContent.appendChild(Btn('btn btn-out', 'Back to dashboard', function() { goScreen('s-cal'); }));
+  loginContent.appendChild(Btn('btn', 'Log out', function() {
+    localStorage.removeItem('dash_pin'); localStorage.removeItem('dash_apikey');
+    currentUserPin = null; anthropicKey = null;
+    showLoginEntry();
+  }));
+}
+
+function initLogin() {
+  var stored = checkStoredLogin();
+  if (stored === true) {
+    // Already logged in with key
+    goScreen('s-cal');
+    seedAndLoad();
+    return;
+  }
+  if (stored === 'load_key') {
+    // Load key from Firebase
+    db.collection('users').doc(currentUserPin).get().then(function(doc) {
+      if (doc.exists && doc.data().apikey) {
+        anthropicKey = doc.data().apikey;
+        localStorage.setItem('dash_apikey', anthropicKey);
+        goScreen('s-cal');
+        seedAndLoad();
+      } else {
+        showLoginSetup();
+      }
+    }).catch(function() { showLoginSetup(); });
+    return;
+  }
+  // Check if any user exists
+  showLoginEntry();
+}
+
+function showLoginEntry() {
+  var box = document.getElementById('login-content');
+  box.innerHTML = '';
+  var title = T('div', 'login-title', 'Welcome back');
+  var sub = T('div', 'login-sub', 'Enter your PIN to continue');
+  box.appendChild(title);
+  box.appendChild(sub);
+  var pin = '';
+  var dots = D('pin-display');
+  for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
+  box.appendChild(dots);
+  function updateDots() {
+    dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
+      d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
+    });
+  }
+  var pad = D('pin-pad');
+  var nums = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  nums.forEach(function(n) {
+    if (n === '') { pad.appendChild(D('')); return; }
+    var b = Btn(n === '⌫' ? 'pin-btn del' : 'pin-btn', n, function() {
+      if (n === '⌫') { pin = pin.slice(0, -1); }
+      else if (pin.length < 4) { pin += n; }
+      updateDots();
+      if (pin.length === 4) {
+        var uid = hashPin(pin);
+        db.collection('users').doc(uid).get().then(function(doc) {
+          if (doc.exists) {
+            currentUserPin = uid;
+            anthropicKey = doc.data().apikey || null;
+            localStorage.setItem('dash_pin', uid);
+            if (anthropicKey) localStorage.setItem('dash_apikey', anthropicKey);
+            goScreen('s-cal');
+            seedAndLoad();
+          } else {
+            pin = '';
+            updateDots();
+            showToastOnLogin('Incorrect PIN');
+          }
+        }).catch(function() { pin = ''; updateDots(); showToastOnLogin('Error — try again'); });
+      }
+    });
+    pad.appendChild(b);
+  });
+  box.appendChild(pad);
+  var newBtn = E('button', 'login-link');
+  newBtn.textContent = 'New user? Set up account';
+  newBtn.addEventListener('click', showLoginSetup);
+  box.appendChild(newBtn);
+}
+
+function showLoginSetup() {
+  var box = document.getElementById('login-content');
+  box.innerHTML = '';
+  var step = 1;
+  var chosenPin = '';
+
+  function showStep1() {
+    box.innerHTML = '';
+    box.appendChild(T('div', 'login-title', 'Create your PIN'));
+    box.appendChild(T('div', 'login-sub', 'Choose a 4-digit PIN to protect your dashboard'));
+    var pin = '';
+    var dots = D('pin-display');
+    for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
+    box.appendChild(dots);
+    function updateDots() {
+      dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
+        d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
+      });
+    }
+    var pad = D('pin-pad');
+    var nums = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+    nums.forEach(function(n) {
+      if (n === '') { pad.appendChild(D('')); return; }
+      var b = Btn(n === '⌫' ? 'pin-btn del' : 'pin-btn', n, function() {
+        if (n === '⌫') { pin = pin.slice(0, -1); }
+        else if (pin.length < 4) { pin += n; }
+        updateDots();
+        if (pin.length === 4) { chosenPin = pin; setTimeout(showStep2, 200); }
+      });
+      pad.appendChild(b);
+    });
+    box.appendChild(pad);
+    var back = E('button', 'login-link');
+    back.textContent = 'Already have an account? Log in';
+    back.addEventListener('click', showLoginEntry);
+    box.appendChild(back);
+  }
+
+  function showStep2() {
+    box.innerHTML = '';
+    box.appendChild(T('div', 'login-title', 'Confirm PIN'));
+    box.appendChild(T('div', 'login-sub', 'Enter your PIN again to confirm'));
+    var pin = '';
+    var dots = D('pin-display');
+    for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
+    box.appendChild(dots);
+    function updateDots() {
+      dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
+        d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
+      });
+    }
+    var pad = D('pin-pad');
+    var nums = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+    nums.forEach(function(n) {
+      if (n === '') { pad.appendChild(D('')); return; }
+      var b = Btn(n === '⌫' ? 'pin-btn del' : 'pin-btn', n, function() {
+        if (n === '⌫') { pin = pin.slice(0, -1); }
+        else if (pin.length < 4) { pin += n; }
+        updateDots();
+        if (pin.length === 4) {
+          if (pin === chosenPin) { setTimeout(showStep3, 200); }
+          else { pin = ''; updateDots(); showToastOnLogin('PINs do not match — try again'); }
+        }
+      });
+      pad.appendChild(b);
+    });
+    box.appendChild(pad);
+  }
+
+  function showStep3() {
+    box.innerHTML = '';
+    box.appendChild(T('div', 'login-title', 'Anthropic API Key'));
+    box.appendChild(T('div', 'login-sub', 'Optional — enables AI food calorie lookup.
+Get yours free at console.anthropic.com'));
+    var keyIn = E('input', 'login-input');
+    keyIn.placeholder = 'sk-ant-... (optional)';
+    keyIn.type = 'password';
+    box.appendChild(keyIn);
+    var skipBtn = Btn('btn btn-out', 'Skip for now', function() { saveUser(''); });
+    var saveBtn = Btn('btn', 'Save and continue', function() { saveUser(keyIn.value.trim()); });
+    box.appendChild(saveBtn);
+    box.appendChild(skipBtn);
+  }
+
+  function saveUser(apikey) {
+    var uid = hashPin(chosenPin);
+    db.collection('users').doc(uid).set({ apikey: apikey, created: new Date().toISOString() }).then(function() {
+      currentUserPin = uid;
+      anthropicKey = apikey || null;
+      localStorage.setItem('dash_pin', uid);
+      if (apikey) localStorage.setItem('dash_apikey', apikey);
+      goScreen('s-cal');
+      seedAndLoad();
+    }).catch(function(e) { showToastOnLogin('Error saving — check connection'); console.error(e); });
+  }
+
+  showStep1();
+}
+
+function showToastOnLogin(msg) {
+  var t = document.getElementById('tst');
+  if (t) { t.textContent = msg; t.classList.add('show'); setTimeout(function() { t.classList.remove('show'); }, 2500); }
+}
+
+// Update doFoodLookup to use anthropicKey when available
+var _origFoodLookup = null; // placeholder - handled inline
+
+
 // ── SEED + INIT ──
 function seedAndLoad(){
   db.collection('days').doc('2025-06-27').get().then(function(check){
@@ -1201,8 +1534,8 @@ function seedAndLoad(){
   });
 }
 
-renderCal();
-seedAndLoad();
+// Start with login check
+initLogin();
 </script>
 </body>
 </html>
