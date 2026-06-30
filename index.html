@@ -241,7 +241,12 @@ input,select,textarea{font-size:16px!important}
     <div style="color:#fff;font-size:24px;font-weight:700;margin-bottom:4px">My Dashboard</div>
     <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px">Training + nutrition tracker</div>
     <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:360px">
-      <div id="login-content"></div>
+      <div id="login-content">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 0">
+          <div class="spinner" style="width:22px;height:22px;border-width:3px"></div>
+          <div style="font-size:12px;color:var(--mu)">Loading...</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
