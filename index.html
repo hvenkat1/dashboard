@@ -50,7 +50,7 @@ input,select,button,textarea{font-family:inherit}
 .sbody{flex:1;overflow-y:auto;padding:18px 14px 80px}
 .sbody.center{display:flex;flex-direction:column;align-items:stretch}
 .cal-card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:10px}
-.cal-legend{display:flex;justify-content:center;gap:18px;padding:10px 14px;background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);margin-bottom:14px}
+.cal-legend{display:flex;justify-content:center;gap:18px;padding:10px 14px;background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);margin-bottom:10px}
 .cal-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--mu)}
 .cal-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--bd)}
@@ -61,17 +61,17 @@ input,select,button,textarea{font-family:inherit}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);padding:8px 10px 4px}
 .cal-dow span{text-align:center;font-size:10px;font-weight:700;color:var(--mu)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:4px 10px 12px}
-.cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;border:1.5px solid transparent;transition:background .12s,border-color .12s}
+.cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;border:1.5px solid transparent;transition:background .12s,border-color .12s;position:relative}
 .cc:active{background:var(--bd)}
-.cc.today{border-color:var(--accent-bd)}
-.cc.sel{background:var(--accent);border-color:var(--accent)}
+.cc.today .cnum{box-shadow:0 0 0 1.5px var(--accent-bd) inset;border-radius:50%}
+.cc.sel .cnum{background:var(--accent);color:#fff;border-radius:50%;box-shadow:none}
+.cc.sel.today .cnum{background:var(--accent-dark)}
 .cc.sel.today{border-color:var(--accent-dark)}
 .cc.sel .cnum{color:#fff;font-weight:700}
 .cc.om .cnum{color:var(--fa)}
-.cnum{font-size:13px;font-weight:500;line-height:1}
-.cdots{display:flex;gap:3px;margin-top:4px;min-height:6px;justify-content:center}
-.cdot{width:5px;height:5px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.6)}
-.cc.sel .cdot{box-shadow:0 0 0 1px rgba(255,255,255,.9)}
+.cnum{font-size:13px;font-weight:500;line-height:1;width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+.cdots{display:flex;gap:2px;margin-top:3px;min-height:5px;justify-content:center}
+.cdot{width:4px;height:4px;border-radius:50%}
 .card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
 .card-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:0.5px solid var(--bd);background:var(--s2)}
 .card-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
@@ -1621,11 +1621,97 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
           });
         });
       }
-      renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
+      if(results.length>0){
+        renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
+      } else {
+        tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow);
+      }
+    })
+    .catch(function(){
+      tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow);
+    });
+}
+
+// Last-resort tier: ask the configured AI provider for a structured
+// nutrition estimate, only reached when both the local database and Open
+// Food Facts have nothing. Silently does nothing if no key is configured —
+// the dropdown just shows the existing "no matches" state from
+// renderFoodDropdown([]) rather than prompting for a key mid-search.
+function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
+  var key=aiKeys[aiProvider];
+  if(!key){
+    renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
+    return;
+  }
+  var prompt='Estimate nutrition for this food/quantity: "'+query+'". Respond with ONLY a JSON object, no markdown, no explanation: {"name":"food name","kcal_per_100":number,"protein_per_100":number,"carbs_per_100":number,"fat_per_100":number,"kind":"g or ml"}. The numbers must be per 100g or 100ml as appropriate for the food type.';
+
+  var req=buildAiRequest(aiProvider,key,prompt);
+  if(!req){renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);return;}
+
+  fetch(req.url,{method:'POST',headers:req.headers,body:JSON.stringify(req.body)})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var text=extractAiText(aiProvider,data);
+      if(!text){renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);return;}
+      var clean=text.replace(/```json|```/g,'').trim();
+      var parsed;
+      try{parsed=JSON.parse(clean);}catch(e){renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);return;}
+      var result=[{
+        name:parsed.name||query,
+        source:(aiProvider==='anthropic'?'Claude':aiProvider==='openai'?'OpenAI':'Gemini')+' estimate',
+        per100:{
+          k:Math.round(parsed.kcal_per_100||0),
+          p:parsed.protein_per_100||0,
+          c:parsed.carbs_per_100||0,
+          fat:parsed.fat_per_100||0,
+          kind:parsed.kind==='ml'?'ml':'g'
+        }
+      }];
+      renderFoodDropdown(result,dropdown,sInput,qtyRow,addRow);
     })
     .catch(function(){
       renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     });
+}
+
+// Builds the provider-specific request shape. Each AI provider has a
+// different endpoint, auth header, and request body format — this is the
+// one place that difference is isolated, so adding a future provider only
+// means adding one more branch here plus one in extractAiText below.
+function buildAiRequest(provider,key,prompt){
+  if(provider==='anthropic'){
+    return {
+      url:'https://api.anthropic.com/v1/messages',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:{model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:prompt}]}
+    };
+  }
+  if(provider==='openai'){
+    return {
+      url:'https://api.openai.com/v1/chat/completions',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:{model:'gpt-4o-mini',max_tokens:300,messages:[{role:'user',content:prompt}]}
+    };
+  }
+  if(provider==='gemini'){
+    return {
+      url:'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(key),
+      headers:{'Content-Type':'application/json'},
+      body:{contents:[{parts:[{text:prompt}]}]}
+    };
+  }
+  return null;
+}
+
+// Pulls the actual response text out of each provider's differently-shaped
+// response body.
+function extractAiText(provider,data){
+  try{
+    if(provider==='anthropic')return data.content&&data.content[0]?data.content[0].text:null;
+    if(provider==='openai')return data.choices&&data.choices[0]?data.choices[0].message.content:null;
+    if(provider==='gemini')return data.candidates&&data.candidates[0]?data.candidates[0].content.parts[0].text:null;
+  }catch(e){return null;}
+  return null;
 }
 
 function renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow){
@@ -2054,6 +2140,52 @@ function renderInsightsBody(){
   }
   body.appendChild(tic);
 
+  // ── Smarter analysis: compare this period to the immediately preceding
+  // equal-length period, detect correlations between skipped workouts and
+  // low protein/water days, and track current streaks. This is all derived
+  // from your own historical data — no AI call involved, so it works
+  // instantly and without an API key.
+  var prevPeriod=resolvePreviousPeriod(rangeDays);
+  var comparison=comparePerodsStats(rangeDays,prevPeriod);
+
+  if(comparison){
+    var cmpCard=D('insight-card');
+    cmpCard.appendChild(dottedTitle('Compared to last period','var(--accent)'));
+    function cmpRow(label,curVal,delta,unit,goodDirection){
+      var r=D('ic-row');
+      r.appendChild(T('div','ic-lbl',label));
+      var deltaTxt=delta===null?'no prior data':((delta>0?'+':'')+delta+unit+' vs last period');
+      var color='var(--mu)';
+      if(delta!==null&&delta!==0){
+        var improved=(goodDirection==='up'&&delta>0)||(goodDirection==='down'&&delta<0);
+        color=improved?'var(--gr)':'var(--re)';
+      }
+      var v=T('div','ic-val',curVal);
+      v.appendChild((function(){var s=E('span');s.textContent=' ('+deltaTxt+')';s.style.cssText='font-size:10px;font-weight:600;color:'+color+';margin-left:4px';return s;})());
+      r.appendChild(v);
+      cmpCard.appendChild(r);
+    }
+    cmpRow('Workout days',comparison.workoutDays.cur+' / '+n,comparison.workoutDays.delta,'',
+'up');
+    cmpRow('Avg calories',comparison.avgKcal.cur||'--',comparison.avgKcal.delta,' kcal','none');
+    cmpRow('Avg water',comparison.avgWater.cur?comparison.avgWater.cur+'L':'--',comparison.avgWater.delta,'L','up');
+    body.appendChild(cmpCard);
+  }
+
+  var streaks=detectStreaks(rangeDays);
+  var correlation=detectCorrelation(rangeDays);
+  if(streaks.length||correlation){
+    var smartCard=D('insight-card');
+    smartCard.appendChild(dottedTitle('Patterns','var(--weight)'));
+    streaks.forEach(function(s){
+      smartCard.appendChild(T('div','ic-row',s));
+    });
+    if(correlation){
+      smartCard.appendChild(T('div','ic-row',correlation));
+    }
+    body.appendChild(smartCard);
+  }
+
   // Tips — generalized to whatever range is selected
   var tips=D('insight-card');
   var rangeLbl=insRange==='7d'?'this week':insRange==='30d'?'this month':insRange==='year'?'this year':'this range';
@@ -2065,6 +2197,80 @@ function renderInsightsBody(){
   if(avgWater>0&&avgWater<3)tips.appendChild(T('div','ic-row','Average water only '+avgWater+'L. Try to hit 4L daily.'));
   if(foodDays<n*0.5)tips.appendChild(T('div','ic-row','Food logged on '+foodDays+' of '+n+' days — more consistent logging gives clearer insights.'));
   body.appendChild(tips);
+}
+
+// Returns the immediately preceding period of the same length as rangeDays,
+// e.g. if rangeDays is the last 7 days, this returns the 7 days before that.
+function resolvePreviousPeriod(rangeDays){
+  if(!rangeDays.length)return [];
+  var n=rangeDays.length;
+  var firstDate=rangeDays[0].date;
+  var days=[];
+  for(var i=n;i>=1;i--){
+    var d=new Date(firstDate);
+    d.setDate(d.getDate()-i);
+    var dk=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    days.push({dk:dk,d:AD[dk]||{},date:d});
+  }
+  return days;
+}
+
+function comparePerodsStats(curDays,prevDays){
+  if(!prevDays.length)return null;
+  function stats(days){
+    var workoutDays=days.filter(function(d){return d.d.training&&d.d.training.status==='done';}).length;
+    var kcalEntries=days.filter(function(d){return d.d.food&&d.d.food.kcal;});
+    var avgKcal=kcalEntries.length?Math.round(kcalEntries.reduce(function(a,d){return a+d.d.food.kcal;},0)/kcalEntries.length):0;
+    var waterEntries=days.filter(function(d){return d.d.food&&d.d.food.water;});
+    var avgWater=waterEntries.length?Math.round(waterEntries.reduce(function(a,d){return a+d.d.food.water;},0)/waterEntries.length*10)/10:0;
+    return {workoutDays:workoutDays,avgKcal:avgKcal,avgWater:avgWater};
+  }
+  var cur=stats(curDays),prev=stats(prevDays);
+  // Only show a delta if the previous period actually has some logged data —
+  // otherwise "+7 workouts vs last period" is misleading noise, not signal.
+  var prevHasData=prevDays.some(function(d){return d.d.training||d.d.food||d.d.weight;});
+  if(!prevHasData)return null;
+  return {
+    workoutDays:{cur:cur.workoutDays,delta:cur.workoutDays-prev.workoutDays},
+    avgKcal:{cur:cur.avgKcal,delta:prev.avgKcal?(cur.avgKcal-prev.avgKcal):null},
+    avgWater:{cur:cur.avgWater,delta:prev.avgWater?Math.round((cur.avgWater-prev.avgWater)*10)/10:null}
+  };
+}
+
+// Finds the longest current streaks (consecutive days ending at the most
+// recent logged day) for workouts completed and water target hit.
+function detectStreaks(rangeDays){
+  var msgs=[];
+  var sorted=rangeDays.slice().reverse(); // most recent first
+  var workoutStreak=0;
+  for(var i=0;i<sorted.length;i++){
+    if(sorted[i].d.training&&sorted[i].d.training.status==='done')workoutStreak++;
+    else break;
+  }
+  if(workoutStreak>=3)msgs.push('🔥 '+workoutStreak+'-day workout streak — keep it going.');
+
+  var waterStreak=0;
+  for(var j=0;j<sorted.length;j++){
+    if(sorted[j].d.food&&sorted[j].d.food.water>=WT)waterStreak++;
+    else break;
+  }
+  if(waterStreak>=3)msgs.push('💧 '+waterStreak+'-day streak hitting your water target.');
+
+  return msgs;
+}
+
+// Checks whether skipped/missed workout days tend to coincide with low
+// water or low protein days — a simple same-day co-occurrence check, not
+// a real statistical correlation, but useful as a pattern flag.
+function detectCorrelation(rangeDays){
+  var skipDays=rangeDays.filter(function(d){return d.d.training&&(d.d.training.status==='skip');});
+  if(skipDays.length<3)return null;
+  var lowWaterOnSkip=skipDays.filter(function(d){return d.d.food&&d.d.food.water&&d.d.food.water<3;}).length;
+  var ratio=lowWaterOnSkip/skipDays.length;
+  if(ratio>=0.6){
+    return 'On days you skipped training, water intake was low '+Math.round(ratio*100)+'% of the time — worth watching if hydration is affecting motivation.';
+  }
+  return null;
 }
 
 function showToast(msg){var t=document.getElementById('tst');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2000);}
@@ -2085,7 +2291,9 @@ document.getElementById('cal-logout-btn').addEventListener('click',function(){
   });
 });
 
-var anthropicKey = null;
+var anthropicKey = null; // kept for backward compatibility with existing saved data
+var aiProvider = 'anthropic'; // 'anthropic' | 'openai' | 'gemini'
+var aiKeys = { anthropic: null, openai: null, gemini: null };
 
 function showSettings() {
   var loginContent = document.getElementById('login-content');
@@ -2097,19 +2305,40 @@ function showSettings() {
   if (backBtn) backBtn.style.display = 'flex';
   var user = auth.currentUser;
   loginContent.appendChild(T('div', 'login-title', 'AI Settings'));
-  loginContent.appendChild(T('div', 'login-sub', 'Your Anthropic API key powers AI food lookup' + (user ? (' for ' + user.email) : '') + '.'));
+  loginContent.appendChild(T('div', 'login-sub', 'Used as a last-resort food lookup when a food isn\'t in the built-in list or Open Food Facts.' + (user ? (' Signed in as ' + user.email) : '')));
+
+  loginContent.appendChild((function(){var l=E('div');l.style.cssText='font-size:11px;font-weight:600;color:var(--mu);margin:14px 0 6px';l.textContent='AI provider';return l;})());
+  var providerRow = D('meal-type-row');
+  var providers = [['anthropic','Claude'],['openai','OpenAI'],['gemini','Gemini']];
   var keyIn = E('input', 'login-input');
-  keyIn.placeholder = 'Anthropic API key (sk-ant-...)';
   keyIn.type = 'password';
-  keyIn.value = anthropicKey || '';
+  function refreshKeyField(){
+    var labels = {anthropic:'sk-ant-...', openai:'sk-...', gemini:'AIza...'};
+    keyIn.placeholder = providers.find(function(p){return p[0]===aiProvider;})[1] + ' API key (' + labels[aiProvider] + ')';
+    keyIn.value = aiKeys[aiProvider] || '';
+  }
+  providers.forEach(function(p){
+    var b = Btn('mt-btn'+(aiProvider===p[0]?' on':''), p[1], function(){
+      aiProvider = p[0];
+      providerRow.querySelectorAll('.mt-btn').forEach(function(btn){btn.classList.remove('on');});
+      b.classList.add('on');
+      refreshKeyField();
+    });
+    providerRow.appendChild(b);
+  });
+  loginContent.appendChild(providerRow);
+  refreshKeyField();
   loginContent.appendChild(keyIn);
-  loginContent.appendChild(Btn('btn', 'Save API key', function() {
+
+  loginContent.appendChild(Btn('btn btn-gap', 'Save AI settings', function() {
     var key = keyIn.value.trim();
-    anthropicKey = key;
-    localStorage.setItem('dash_apikey', key);
+    aiKeys[aiProvider] = key;
+    anthropicKey = aiKeys.anthropic; // keep legacy var in sync for anything still reading it
+    localStorage.setItem('dash_ai_provider', aiProvider);
+    localStorage.setItem('dash_ai_keys', JSON.stringify(aiKeys));
     if (user) {
-      db.collection('users').doc(user.uid).set({ apikey: key }, {merge:true}).then(function() {
-        showToast('API key saved');goScreen('s-cal');
+      db.collection('users').doc(user.uid).set({ aiProvider: aiProvider, aiKeys: aiKeys }, {merge:true}).then(function() {
+        showToast('AI settings saved');goScreen('s-cal');
       }).catch(function() { showToast('Saved locally'); goScreen('s-cal'); });
     } else { showToast('Saved'); goScreen('s-cal'); }
   }));
@@ -2135,7 +2364,20 @@ if (retryBtn) retryBtn.addEventListener('click', function() { location.reload();
 auth.onAuthStateChanged(function(user) {
   if (user) {
     db.collection('users').doc(user.uid).get().then(function(doc) {
-      anthropicKey = (doc.exists && doc.data().apikey) ? doc.data().apikey : null;
+      var data = doc.exists ? doc.data() : {};
+      if (data.aiKeys) {
+        aiKeys = data.aiKeys;
+        aiProvider = data.aiProvider || 'anthropic';
+      } else if (data.apikey) {
+        // Backward compatibility: accounts saved before multi-provider
+        // support only have a single Anthropic key under the old field name.
+        aiKeys = { anthropic: data.apikey, openai: null, gemini: null };
+        aiProvider = 'anthropic';
+      } else {
+        aiKeys = { anthropic: null, openai: null, gemini: null };
+        aiProvider = 'anthropic';
+      }
+      anthropicKey = aiKeys.anthropic;
       clearTimeout(authTimeoutId);
       seedAndLoad();
     }).catch(function() {
