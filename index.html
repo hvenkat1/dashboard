@@ -63,6 +63,13 @@ input,select,button,textarea{font-family:inherit}
 .card-title{font-size:12px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em}
 .card-action{font-size:12px;font-weight:600;color:var(--bl);background:none;border:none;cursor:pointer}
 .card-body{padding:12px 14px}
+.menu-list{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden}
+.menu-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:0.5px solid var(--bd);background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left;font-family:inherit}
+.menu-row:last-child{border-bottom:none}
+.menu-row:active{background:var(--s2)}
+.menu-icon{font-size:18px;width:24px;text-align:center;flex-shrink:0}
+.menu-label{font-size:14px;font-weight:500;color:var(--tx);flex:1}
+.menu-chevron{font-size:16px;color:var(--mu)}
 .slbl{font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 8px}
 .slbl:first-child{margin-top:0}
 .badge{font-size:10px;font-weight:600;padding:3px 10px;border-radius:12px;white-space:nowrap;border:0.5px solid;display:inline-block}
@@ -295,6 +302,14 @@ input,select,textarea{font-size:16px!important}
   <div class="sbody" id="weight-body"></div>
 </div>
 
+<div class="screen" id="s-menu">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
+    <div class="topbar-title">Menu</div>
+  </div>
+  <div class="sbody" id="menu-body"></div>
+</div>
+
 <div class="screen" id="s-insights">
   <div class="topbar">
     <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
@@ -419,6 +434,30 @@ function goBack(){
 }
 function goInsights(){renderInsights();goScreen('s-insights');}
 function goMyPlan(){renderMyPlan();goScreen('s-myplan');}
+function goMenu(){renderMenu();goScreen('s-menu');}
+
+function renderMenu(){
+  var body=document.getElementById('menu-body');
+  body.innerHTML='';
+  var list=D('menu-list');
+
+  function row(icon,label,fn){
+    var r=E('button','menu-row');
+    r.appendChild(T('span','menu-icon',icon));
+    r.appendChild(T('span','menu-label',label));
+    r.appendChild(T('span','menu-chevron',String.fromCharCode(8250)));
+    r.addEventListener('click',fn);
+    return r;
+  }
+
+  list.appendChild(row(String.fromCharCode(128197),'Calendar',function(){ goScreen('s-cal'); renderCal(); }));
+  list.appendChild(row(String.fromCharCode(128202),'Insights',function(){ goInsights(); }));
+  list.appendChild(row(String.fromCharCode(128170),'My plan',function(){ goMyPlan(); }));
+  list.appendChild(row(String.fromCharCode(9881),'Settings',function(){ showSettings(); }));
+
+  body.appendChild(list);
+}
+
 
 // Read-only view of the original 6-month phased plan. This is informational
 // only — it never feeds into the generic training log, by design. It shows
@@ -1346,7 +1385,7 @@ document.getElementById('py').addEventListener('click',function(){cy--;renderCal
 document.getElementById('pm').addEventListener('click',function(){cm--;if(cm<0){cm=11;cy--;}renderCal();});
 document.getElementById('nm').addEventListener('click',function(){cm++;if(cm>11){cm=0;cy++;}renderCal();});
 document.getElementById('ny').addEventListener('click',function(){cy++;renderCal();});
-document.getElementById('menu-btn').addEventListener('click',goMyPlan);
+document.getElementById('menu-btn').addEventListener('click',goMenu);
 
 var anthropicKey = null;
 
@@ -1414,15 +1453,19 @@ auth.onAuthStateChanged(function(user) {
 function authErrorMessage(e) {
   var map = {
     'auth/invalid-email': 'That email address looks invalid.',
-    'auth/user-not-found': 'No account found with that email.',
+    'auth/user-not-found': 'No account found with that email. Tap "Create an account" below if you\'re new here.',
     'auth/wrong-password': 'Incorrect password.',
-    'auth/invalid-credential': 'Incorrect email or password.',
+    'auth/invalid-credential': 'Incorrect email or password — or no account exists yet. Tap "Create an account" if you\'re new here.',
+    'auth/invalid-login-credentials': 'Incorrect email or password — or no account exists yet. Tap "Create an account" if you\'re new here.',
+    'auth/user-disabled': 'This account has been disabled.',
     'auth/email-already-in-use': 'An account already exists with that email.',
     'auth/weak-password': 'Password should be at least 6 characters.',
     'auth/too-many-requests': 'Too many attempts. Try again in a moment.',
     'auth/network-request-failed': 'Network error — check your connection.'
   };
-  return map[e.code] || (e.message || 'Something went wrong. Try again.');
+  // Never let a raw Firebase error string reach the UI, even for codes we
+  // haven't explicitly mapped — fall back to a generic, still-readable message.
+  return map[e.code] || 'Something went wrong signing in. Check your details and try again.';
 }
 
 function showLoginEntry() {
