@@ -54,7 +54,10 @@ input,select,button,textarea{font-family:inherit}
 .topbar-action{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;padding:8px 6px;display:flex;align-items:center}
 .sbody{flex:1;overflow-y:auto;padding:18px 14px 80px}
 .sbody.center{display:flex;flex-direction:column;align-items:stretch}
-.cal-card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}
+.cal-card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:10px}
+.cal-legend{display:flex;justify-content:center;gap:18px;padding:10px 14px;background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);margin-bottom:14px}
+.cal-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--mu)}
+.cal-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--bd)}
 .cal-lbl{font-size:15px;font-weight:700}
 .cal-navs{display:flex;gap:5px}
@@ -63,12 +66,17 @@ input,select,button,textarea{font-family:inherit}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);padding:8px 10px 4px}
 .cal-dow span{text-align:center;font-size:10px;font-weight:700;color:var(--mu)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:4px 10px 12px}
-.cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;cursor:pointer;border:0.5px solid transparent;transition:background .1s}
+.cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;border:1.5px solid transparent;transition:background .12s,border-color .12s}
 .cc:active{background:var(--bd)}
-.cc.today{border-color:var(--accent);border-width:1.5px}.cc.sel{background:var(--accent)}.cc.sel .cnum{color:#fff}.cc.om .cnum{color:var(--fa)}
+.cc.today{border-color:var(--accent-bd)}
+.cc.sel{background:var(--accent);border-color:var(--accent)}
+.cc.sel.today{border-color:var(--accent-dark)}
+.cc.sel .cnum{color:#fff;font-weight:700}
+.cc.om .cnum{color:var(--fa)}
 .cnum{font-size:13px;font-weight:500;line-height:1}
-.cdots{display:flex;gap:2px;margin-top:3px;min-height:5px}
-.cdot{width:4px;height:4px;border-radius:50%}
+.cdots{display:flex;gap:3px;margin-top:4px;min-height:6px;justify-content:center}
+.cdot{width:5px;height:5px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.6)}
+.cc.sel .cdot{box-shadow:0 0 0 1px rgba(255,255,255,.9)}
 .card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
 .card-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:0.5px solid var(--bd);background:var(--s2)}
 .card-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
@@ -154,6 +162,23 @@ input,select,button,textarea{font-family:inherit}
 .wt-val{font-size:8px;color:var(--bl);text-align:center;margin-top:3px}
 .wt-date{font-size:8px;color:var(--mu);text-align:center}
 .insight-card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);padding:14px;margin-bottom:10px}
+.ins-range-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px}
+.ins-range-btn{padding:9px 4px;border-radius:10px;border:1.5px solid var(--bd);background:var(--sf);font-size:12px;font-weight:600;color:var(--mu);cursor:pointer;text-align:center}
+.ins-range-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ins-custom-row{display:flex;gap:8px;align-items:center;background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);padding:12px 14px;margin-bottom:14px}
+.ins-custom-row input{flex:1;padding:8px 10px;border:0.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx)}
+.ins-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.ins-stat{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);padding:13px 14px}
+.ins-stat-lbl{font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.ins-stat-val{font-size:20px;font-weight:700;line-height:1.1}
+.ins-stat-sub{font-size:10px;color:var(--mu);margin-top:4px}
+.ins-linechart{position:relative;height:120px;margin-top:6px}
+.ins-linechart svg{width:100%;height:100%;display:block;overflow:visible}
+.ins-linechart-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--mu)}
+.ins-bars{display:flex;align-items:flex-end;gap:3px;height:80px;margin-top:8px}
+.ins-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.ins-bar{width:100%;border-radius:3px 3px 0 0;min-height:4px}
+.ins-bar-lbl{font-size:8px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .ic-title{font-size:13px;font-weight:700;margin-bottom:10px}
 .ic-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--bd)}
 .ic-row:last-child{border-bottom:none}
@@ -297,10 +322,10 @@ input,select,textarea{font-size:16px!important}
       </div>
       <div class="cal-grid" id="cg"></div>
     </div>
-    <div style="font-size:11px;color:var(--mu);text-align:center;margin-top:4px">
-      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px"><span style="width:8px;height:8px;background:var(--accent);border-radius:50%;display:inline-block"></span>Workout done</span>
-      <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px"><span style="width:8px;height:8px;background:var(--food);border-radius:50%;display:inline-block"></span>Food logged</span>
-      <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:var(--weight);border-radius:50%;display:inline-block"></span>Weight logged</span>
+    <div class="cal-legend">
+      <span class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--accent)"></span>Workout</span>
+      <span class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--food)"></span>Food</span>
+      <span class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--weight)"></span>Weight</span>
     </div>
   </div>
 </div>
@@ -358,7 +383,11 @@ input,select,textarea{font-size:16px!important}
     <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
     <div class="topbar-title">Insights</div>
   </div>
-  <div class="sbody" id="insights-body"></div>
+  <div class="sbody">
+    <div class="ins-range-bar" id="ins-range-bar"></div>
+    <div id="ins-custom-picker" style="display:none"></div>
+    <div id="insights-body"></div>
+  </div>
 </div>
 
 <div class="screen" id="s-myplan">
@@ -404,6 +433,8 @@ function wCol(p){return p<50?'#c0392b':p<85?'#a06000':'#2a6029';}
 function cCol(p){return p>110?'#c0392b':p>85?'#a06000':'#2a6029';}
 
 var sd=todayKey(),cy=new Date().getFullYear(),cm=new Date().getMonth();
+var insRange='7d'; // '7d' | '30d' | 'year' | 'custom'
+var insCustomStart=null, insCustomEnd=null;
 var AD={};
 var fMealType='Lunch',fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
 var fLookupResult=null;
@@ -1581,95 +1612,238 @@ function renderWeightForm(){
   }));
 }
 
+function resolveInsightsRange(){
+  var end=new Date();end.setHours(12,0,0,0);
+  var start=new Date(end);
+  if(insRange==='7d'){start.setDate(end.getDate()-6);}
+  else if(insRange==='30d'){start.setDate(end.getDate()-29);}
+  else if(insRange==='year'){start=new Date(end.getFullYear(),0,1);}
+  else if(insRange==='custom'&&insCustomStart&&insCustomEnd){
+    start=new Date(insCustomStart+'T12:00:00');
+    end.setTime(new Date(insCustomEnd+'T12:00:00').getTime());
+  }
+  var days=[];
+  var cur=new Date(start);
+  while(cur<=end){
+    var dk=cur.getFullYear()+'-'+pad(cur.getMonth()+1)+'-'+pad(cur.getDate());
+    days.push({dk:dk,d:AD[dk]||{},lbl:DS[cur.getDay()].substring(0,3),date:new Date(cur)});
+    cur.setDate(cur.getDate()+1);
+  }
+  return days;
+}
+
+function renderRangeBar(){
+  var bar=document.getElementById('ins-range-bar');
+  bar.innerHTML='';
+  var opts=[['7d','7 Days'],['30d','30 Days'],['year','This Year'],['custom','Custom']];
+  opts.forEach(function(o){
+    var b=Btn('ins-range-btn'+(insRange===o[0]?' on':''),o[1],function(){
+      insRange=o[0];
+      var picker=document.getElementById('ins-custom-picker');
+      if(o[0]==='custom'){
+        picker.style.display='block';
+        renderCustomPicker();
+      } else {
+        picker.style.display='none';
+        renderRangeBar();
+        renderInsightsBody();
+      }
+    });
+    bar.appendChild(b);
+  });
+}
+
+function renderCustomPicker(){
+  var picker=document.getElementById('ins-custom-picker');
+  picker.innerHTML='';
+  var row=D('ins-custom-row');
+  var startIn=Inp('ins-start','date',null,insCustomStart||todayKey());
+  var endIn=Inp('ins-end','date',null,insCustomEnd||todayKey());
+  var goBtn=Btn('btn-out','Apply',function(){
+    insCustomStart=startIn.value;
+    insCustomEnd=endIn.value;
+    if(!insCustomStart||!insCustomEnd){showToast('Pick both dates');return;}
+    if(insCustomStart>insCustomEnd){showToast('Start date must be before end date');return;}
+    goBtn.style.width='auto';
+    renderInsightsBody();
+  });
+  goBtn.style.cssText='width:auto;padding:8px 16px;white-space:nowrap';
+  ap(row,startIn,T('span','','to'),endIn,goBtn);
+  picker.appendChild(row);
+}
+
+// Builds a simple SVG polyline chart for a series of {x,y} points, with
+// nulls (missing data) creating a gap rather than a misleading straight
+// line across days with no entry.
+function buildLineChart(points,color,minY,maxY){
+  var w=320,h=120,padX=4,padY=10;
+  var validPts=points.filter(function(p){return p.y!==null;});
+  if(!validPts.length)return null;
+  if(minY===undefined)minY=Math.min.apply(null,validPts.map(function(p){return p.y;}));
+  if(maxY===undefined)maxY=Math.max.apply(null,validPts.map(function(p){return p.y;}));
+  if(minY===maxY){minY-=1;maxY+=1;}
+  var n=points.length;
+  function xAt(i){return padX+(i/(n-1||1))*(w-padX*2);}
+  function yAt(v){return h-padY-((v-minY)/(maxY-minY))*(h-padY*2);}
+
+  var segments=[];
+  var cur=[];
+  points.forEach(function(p,i){
+    if(p.y===null){
+      if(cur.length)segments.push(cur);
+      cur=[];
+    } else {
+      cur.push(xAt(i)+','+yAt(p.y));
+    }
+  });
+  if(cur.length)segments.push(cur);
+
+  var ns='http://www.w3.org/2000/svg';
+  var svg=document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox','0 0 '+w+' '+h);
+  svg.setAttribute('preserveAspectRatio','none');
+
+  segments.forEach(function(seg){
+    if(seg.length>1){
+      var poly=document.createElementNS(ns,'polyline');
+      poly.setAttribute('points',seg.join(' '));
+      poly.setAttribute('fill','none');
+      poly.setAttribute('stroke',color);
+      poly.setAttribute('stroke-width','2.5');
+      poly.setAttribute('stroke-linecap','round');
+      poly.setAttribute('stroke-linejoin','round');
+      svg.appendChild(poly);
+    }
+  });
+  points.forEach(function(p,i){
+    if(p.y!==null){
+      var dot=document.createElementNS(ns,'circle');
+      dot.setAttribute('cx',xAt(i));dot.setAttribute('cy',yAt(p.y));dot.setAttribute('r','3');
+      dot.setAttribute('fill',color);
+      svg.appendChild(dot);
+    }
+  });
+  return svg;
+}
+
 function renderInsights(){
+  insRange='7d';
+  renderRangeBar();
+  document.getElementById('ins-custom-picker').style.display='none';
+  renderInsightsBody();
+}
+
+function renderInsightsBody(){
   var body=document.getElementById('insights-body');
   body.innerHTML='';
-  var days7=[];for(var i=6;i>=0;i--){var dd2=new Date();dd2.setDate(dd2.getDate()-i);var dk2=dd2.getFullYear()+'-'+pad(dd2.getMonth()+1)+'-'+pad(dd2.getDate());days7.push({dk:dk2,d:AD[dk2]||{},lbl:DS[dd2.getDay()].substring(0,3)});}
+  var rangeDays=resolveInsightsRange();
+  if(!rangeDays.length){
+    body.appendChild(T('div','empty','No dates in this range.'));
+    return;
+  }
 
-  var ic=D('insight-card');ic.appendChild(T('div','ic-title','Last 7 days'));
-  var wdots=D('week-dots');
-  days7.forEach(function(day){
-    var wd=D('wd');
-    var t=day.d.training;var st=t?t.status:'none';
-    var col=st==='done'?'var(--gbg)':st==='skip'?'var(--rbg)':st==='rest'?'var(--s2)':'var(--bd)';
-    var tc=st==='done'?'var(--gr)':st==='skip'?'var(--re)':st==='rest'?'var(--mu)':'var(--fa)';
-    wd.style.cssText='width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-direction:column;background:'+col+';color:'+tc;
-    wd.textContent=st==='done'?'Done':st==='skip'?'Skip':st==='rest'?'Rest':'--';
-    var ldiv=T('div','wt-date',day.lbl);ldiv.style.color='var(--mu)';
-    var wrap=D('');wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:3px';
-    ap(wrap,wd,ldiv);wdots.appendChild(wrap);
+  var n=rangeDays.length;
+  var workoutDays=rangeDays.filter(function(d){return d.d.training&&d.d.training.status==='done';}).length;
+  var foodDays=rangeDays.filter(function(d){return d.d.food&&d.d.food.meals&&d.d.food.meals.length;}).length;
+  var kcalEntries=rangeDays.filter(function(d){return d.d.food&&d.d.food.kcal;});
+  var avgKcal=kcalEntries.length?Math.round(kcalEntries.reduce(function(a,d){return a+d.d.food.kcal;},0)/kcalEntries.length):0;
+  var waterEntries=rangeDays.filter(function(d){return d.d.food&&d.d.food.water;});
+  var avgWater=waterEntries.length?Math.round(waterEntries.reduce(function(a,d){return a+d.d.food.water;},0)/waterEntries.length*10)/10:0;
+  var weightEntries=rangeDays.filter(function(d){return d.d.weight;});
+  var weightChange=weightEntries.length>=2?Math.round((weightEntries[weightEntries.length-1].d.weight-weightEntries[0].d.weight)*10)/10:null;
+
+  // Summary stat tiles
+  var sg=D('ins-summary-grid');
+  function statTile(lbl,val,sub,color){
+    var t=D('ins-stat');
+    t.appendChild(T('div','ins-stat-lbl',lbl));
+    var v=T('div','ins-stat-val',val);if(color)v.style.color=color;
+    t.appendChild(v);
+    if(sub)t.appendChild(T('div','ins-stat-sub',sub));
+    return t;
+  }
+  ap(sg,
+    statTile('Workouts',workoutDays+' / '+n,'days completed',workoutDays/n>=0.5?'var(--gr)':'var(--am)'),
+    statTile('Avg calories',avgKcal?avgKcal+'':'--','kcal/day',avgKcal>0&&avgKcal<KT+200?'var(--gr)':'var(--am)'),
+    statTile('Avg water',avgWater?avgWater+'L':'--','per day',avgWater>=3.5?'var(--gr)':'var(--am)'),
+    statTile('Weight change',weightChange!==null?((weightChange>0?'+':'')+weightChange+'kg'):'--','this range',weightChange===null?'var(--mu)':weightChange<0?'var(--gr)':'var(--re)')
+  );
+  body.appendChild(sg);
+
+  // Weight trend — line chart
+  if(weightEntries.length>=2){
+    var wic=D('insight-card');
+    wic.appendChild(dottedTitle('Weight trend','var(--weight)'));
+    var wPoints=rangeDays.map(function(d){return {y:d.d.weight!==undefined&&d.d.weight!==null?d.d.weight:null};});
+    var wChart=D('ins-linechart');
+    var wSvg=buildLineChart(wPoints,'#6d5cf2');
+    if(wSvg)wChart.appendChild(wSvg);
+    wic.appendChild(wChart);
+    var wLabels=D('ins-linechart-labels');
+    var labelStep=Math.max(1,Math.ceil(n/6));
+    rangeDays.forEach(function(d,i){
+      if(i%labelStep===0||i===n-1){wLabels.appendChild(T('span','',d.date.getDate()+' '+MS[d.date.getMonth()]));}
+    });
+    wic.appendChild(wLabels);
+    body.appendChild(wic);
+  }
+
+  // Calorie trend — line chart against target
+  if(kcalEntries.length>=2){
+    var cic=D('insight-card');
+    cic.appendChild(dottedTitle('Calorie trend','var(--food)'));
+    var cPoints=rangeDays.map(function(d){return {y:d.d.food&&d.d.food.kcal?d.d.food.kcal:null};});
+    var cChart=D('ins-linechart');
+    var allK=cPoints.filter(function(p){return p.y!==null;}).map(function(p){return p.y;}).concat([KT]);
+    var cSvg=buildLineChart(cPoints,'#16a34a',0,Math.max.apply(null,allK)*1.1);
+    if(cSvg)cChart.appendChild(cSvg);
+    cic.appendChild(cChart);
+    var cLabels=D('ins-linechart-labels');
+    var labelStep2=Math.max(1,Math.ceil(n/6));
+    rangeDays.forEach(function(d,i){
+      if(i%labelStep2===0||i===n-1){cLabels.appendChild(T('span','',d.date.getDate()+' '+MS[d.date.getMonth()]));}
+    });
+    cic.appendChild(cLabels);
+    var note=T('div','','Target: '+KT+' kcal/day');
+    note.style.cssText='font-size:10px;color:var(--mu);margin-top:6px';
+    cic.appendChild(note);
+    body.appendChild(cic);
+  }
+
+  // Workout consistency — bar chart (categorical, not a trend line)
+  var tic=D('insight-card');
+  tic.appendChild(dottedTitle('Training consistency','var(--accent)'));
+  var bars=D('ins-bars');
+  var showEveryNth=n>31?Math.ceil(n/31):1;
+  rangeDays.forEach(function(d,i){
+    if(i%showEveryNth!==0&&i!==n-1)return;
+    var st=d.d.training?d.d.training.status:null;
+    var col=st==='done'?'var(--accent)':st==='skip'?'var(--rbd)':st==='rest'?'var(--bd)':'var(--fa)';
+    var h=st==='done'?100:st==='skip'?55:st==='rest'?35:8;
+    var c=D('ins-bar-col');
+    var b=D('ins-bar');b.style.cssText='height:'+h+'%;background:'+col;
+    c.appendChild(b);
+    if(n<=14)c.appendChild(T('div','ins-bar-lbl',d.lbl));
+    bars.appendChild(c);
   });
-  ic.appendChild(wdots);
-
-  var workoutDays=days7.filter(function(d){return d.d.training&&d.d.training.status==='done';}).length;
-  var foodDays=days7.filter(function(d){return d.d.food&&d.d.food.meals&&d.d.food.meals.length;}).length;
-  var kcals=days7.filter(function(d){return d.d.food&&d.d.food.kcal;}).map(function(d){return d.d.food.kcal;});
-  var avgKcal=kcals.length?Math.round(kcals.reduce(function(a,b){return a+b;},0)/kcals.length):0;
-  var waters=days7.filter(function(d){return d.d.food&&d.d.food.water;}).map(function(d){return d.d.food.water;});
-  var avgWater=waters.length?Math.round(waters.reduce(function(a,b){return a+b;},0)/waters.length*10)/10:0;
-  var weights=days7.filter(function(d){return d.d.weight;}).map(function(d){return d.d.weight;});
-  var weightChange=weights.length>=2?Math.round((weights[weights.length-1]-weights[0])*10)/10:null;
-
-  function irow(lbl,val,color){var r=D('ic-row');r.appendChild(T('div','ic-lbl',lbl));var v=T('div','ic-val',val);if(color)v.style.color=color;r.appendChild(v);ic.appendChild(r);}
-  irow('Workouts completed',workoutDays+' / 7',workoutDays>=4?'var(--gr)':'var(--am)');
-  irow('Days food logged',foodDays+' / 7');
-  irow('Avg daily calories',avgKcal?avgKcal+' kcal':'Not enough data',avgKcal>0&&avgKcal<KT+200?'var(--gr)':'var(--am)');
-  irow('Avg water intake',avgWater?avgWater+'L / day':'Not enough data',avgWater>=3.5?'var(--gr)':'var(--am)');
-  if(weightChange!==null)irow('Weight change (7d)',(weightChange>0?'+':'')+weightChange+' kg',weightChange<0?'var(--gr)':weightChange>0?'var(--re)':'var(--mu)');
-  body.appendChild(ic);
-
-  if(kcals.length){
-    var cc2=D('insight-card');cc2.appendChild(T('div','ic-title','Daily calories'));
-    var chart=D('weight-trend');chart.style.height='80px';
-    var maxK=Math.max.apply(null,kcals.concat([KT]));
-    days7.forEach(function(day){
-      var col2=D('');col2.style.cssText='flex:1;display:flex;flex-direction:column;align-items:center';
-      var k=day.d.food&&day.d.food.kcal?day.d.food.kcal:0;
-      if(k){
-        var h=Math.round((k/maxK)*65)+5;
-        var bar=D('');bar.style.cssText='width:100%;height:'+h+'px;background:'+kCol(pct(k,KT))+';border-radius:4px 4px 0 0';
-        col2.appendChild(bar);
-        var v=T('div','wt-val',k>999?Math.round(k/100)/10+'k':String(k));v.style.color='var(--tx)';
-        col2.appendChild(v);
-      } else {
-        var e2=D('');e2.style.cssText='width:100%;height:5px;background:var(--bd);border-radius:4px 4px 0 0;opacity:.3';
-        col2.appendChild(e2);col2.appendChild(T('div','wt-val',''));
-      }
-      col2.appendChild(T('div','wt-date',day.lbl));chart.appendChild(col2);
-    });
-    cc2.appendChild(chart);
-    var tn=T('div','','Target: '+KT+' kcal/day, red = below 40%, amber = 40-75%, green = 75%+');
-    tn.style.cssText='font-size:10px;color:var(--mu);margin-top:8px;line-height:1.5';
-    cc2.appendChild(tn);body.appendChild(cc2);
+  tic.appendChild(bars);
+  if(n>14){
+    var legend=T('div','','Orange = completed, light red = skipped, grey = rest, faint = not logged');
+    legend.style.cssText='font-size:10px;color:var(--mu);margin-top:8px;line-height:1.5';
+    tic.appendChild(legend);
   }
+  body.appendChild(tic);
 
-  if(weights.length>=2){
-    var wic=D('insight-card');wic.appendChild(T('div','ic-title','Weight trend'));
-    var minW2=Math.min.apply(null,weights)-0.5,maxW2=Math.max.apply(null,weights)+0.5;
-    var wtrow=D('weight-trend');wtrow.style.height='80px';
-    days7.forEach(function(day){
-      var col3=D('');col3.style.cssText='flex:1;display:flex;flex-direction:column;align-items:center';
-      var w=day.d.weight;
-      if(w){
-        var h=Math.round(((w-minW2)/(maxW2-minW2))*60)+10;
-        var bar=D('');bar.style.cssText='width:100%;height:'+h+'px;background:var(--weight-bg);border-radius:4px 4px 0 0';
-        if(day.dk===sd)bar.style.background='var(--weight)';
-        col3.appendChild(bar);col3.appendChild(T('div','wt-val',String(w)));
-      } else {
-        var e3=D('');e3.style.cssText='width:100%;height:5px;background:var(--bd);border-radius:4px 4px 0 0;opacity:.3';
-        col3.appendChild(e3);col3.appendChild(T('div','wt-val',''));
-      }
-      col3.appendChild(T('div','wt-date',day.lbl));wtrow.appendChild(col3);
-    });
-    wic.appendChild(wtrow);body.appendChild(wic);
-  }
-
-  var tips=D('insight-card');tips.appendChild(T('div','ic-title','This week'));
-  if(workoutDays===0)tips.appendChild(T('div','ic-row','No workouts logged this week. Even one treadmill session makes a difference.'));
-  else if(workoutDays<3)tips.appendChild(T('div','ic-row',workoutDays+' workout days - aim for 4-5 this week.'));
-  else tips.appendChild(T('div','ic-row','Good workout consistency this week.'));
-  if(avgKcal>0&&avgKcal<1200)tips.appendChild(T('div','ic-row','Average calories very low ('+avgKcal+'). Stress can suppress appetite - try to eat more.'));
+  // Tips — generalized to whatever range is selected
+  var tips=D('insight-card');
+  var rangeLbl=insRange==='7d'?'this week':insRange==='30d'?'this month':insRange==='year'?'this year':'this range';
+  tips.appendChild(T('div','ic-title','Summary'));
+  if(workoutDays===0)tips.appendChild(T('div','ic-row','No workouts logged '+rangeLbl+'. Even one session makes a difference.'));
+  else if(workoutDays/n<0.4)tips.appendChild(T('div','ic-row',workoutDays+' workout days '+rangeLbl+' — aim for more consistency.'));
+  else tips.appendChild(T('div','ic-row','Good workout consistency '+rangeLbl+'.'));
+  if(avgKcal>0&&avgKcal<1200)tips.appendChild(T('div','ic-row','Average calories very low ('+avgKcal+'). Stress can suppress appetite — try to eat more.'));
   if(avgWater>0&&avgWater<3)tips.appendChild(T('div','ic-row','Average water only '+avgWater+'L. Try to hit 4L daily.'));
+  if(foodDays<n*0.5)tips.appendChild(T('div','ic-row','Food logged on '+foodDays+' of '+n+' days — more consistent logging gives clearer insights.'));
   body.appendChild(tips);
 }
 
