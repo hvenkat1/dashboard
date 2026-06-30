@@ -16,6 +16,23 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh}
 input,select,button,textarea{font-family:inherit}
+
+/* DESKTOP LAYOUT */
+@media (min-width: 700px) {
+  body{background:var(--bd)}
+  .screen.active{align-items:center}
+  .topbar{max-width:480px;margin:0 auto;width:100%;border-radius:0 0 var(--ra) var(--ra)}
+  .sbody{max-width:480px;margin:0 auto;width:100%;background:var(--bg);padding:18px 18px 80px}
+  .cal-card{max-width:420px;margin:0 auto 14px}
+  .cal-grid{gap:4px;padding:6px 12px 14px}
+  .cc{max-width:48px;justify-self:center}
+  .cnav{width:32px;height:32px}
+  .cnum{font-size:13px}
+  .cc{cursor:pointer}
+  .cc:hover{background:var(--s2)}
+  #s-login > div{background:var(--tx)}
+  #login-box{box-shadow:0 8px 32px rgba(0,0,0,.25)}
+}
 .screen{display:none;flex-direction:column;min-height:100vh}
 .screen.active{display:flex}
 .topbar{background:var(--tx);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;flex-shrink:0}
@@ -1217,6 +1234,62 @@ function initLogin() {
   showLoginEntry();
 }
 
+function isDesktopInput() {
+  return window.matchMedia('(min-width: 700px)').matches && !('ontouchstart' in window);
+}
+
+// Builds a PIN entry UI under `box`: dots + either a real keyboard input (desktop)
+// or a tap keypad (mobile). Calls onComplete(pin) once 4 digits are entered, and
+// onChange() after every digit so callers can clear error states etc.
+function buildPinEntry(box, onComplete, onChange) {
+  var pin = '';
+  var dots = D('pin-display');
+  for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
+  box.appendChild(dots);
+
+  function updateDots() {
+    dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
+      d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
+    });
+  }
+
+  function setPin(newPin) {
+    pin = newPin.replace(/[^0-9]/g, '').slice(0, 4);
+    updateDots();
+    if (onChange) onChange();
+    if (pin.length === 4) onComplete(pin);
+  }
+
+  if (isDesktopInput()) {
+    var kIn = E('input', 'login-input');
+    kIn.type = 'password';
+    kIn.inputMode = 'numeric';
+    kIn.maxLength = 4;
+    kIn.placeholder = 'Type your 4-digit PIN';
+    kIn.style.textAlign = 'center';
+    kIn.style.letterSpacing = '8px';
+    kIn.style.fontSize = '20px';
+    kIn.addEventListener('input', function() { setPin(kIn.value); });
+    box.appendChild(kIn);
+    setTimeout(function() { kIn.focus(); }, 50);
+    return { reset: function() { setPin(''); kIn.value = ''; kIn.focus(); } };
+  }
+
+  var padEl = D('pin-pad');
+  var nums = ['1','2','3','4','5','6','7','8','9','','0','del'];
+  nums.forEach(function(n) {
+    if (n === '') { padEl.appendChild(D('')); return; }
+    var isDel = n === 'del';
+    var b = Btn(isDel ? 'pin-btn del' : 'pin-btn', isDel ? String.fromCharCode(9003) : n, function() {
+      if (isDel) { setPin(pin.slice(0, -1)); }
+      else if (pin.length < 4) { setPin(pin + n); }
+    });
+    padEl.appendChild(b);
+  });
+  box.appendChild(padEl);
+  return { reset: function() { setPin(''); } };
+}
+
 function showLoginEntry() {
   var box = document.getElementById('login-content');
   box.innerHTML = '';
@@ -1224,45 +1297,24 @@ function showLoginEntry() {
   var sub = T('div', 'login-sub', 'Enter your PIN to continue');
   box.appendChild(title);
   box.appendChild(sub);
-  var pin = '';
-  var dots = D('pin-display');
-  for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
-  box.appendChild(dots);
-  function updateDots() {
-    dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
-      d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
-    });
-  }
-  var padEl = D('pin-pad');
-  var nums = ['1','2','3','4','5','6','7','8','9','','0','del'];
-  nums.forEach(function(n) {
-    if (n === '') { padEl.appendChild(D('')); return; }
-    var isDel = n === 'del';
-    var b = Btn(isDel ? 'pin-btn del' : 'pin-btn', isDel ? String.fromCharCode(9003) : n, function() {
-      if (isDel) { pin = pin.slice(0, -1); }
-      else if (pin.length < 4) { pin += n; }
-      updateDots();
-      if (pin.length === 4) {
-        var uid = hashPin(pin);
-        db.collection('users').doc(uid).get().then(function(doc) {
-          if (doc.exists) {
-            currentUserPin = uid;
-            anthropicKey = doc.data().apikey || null;
-            localStorage.setItem('dash_pin', uid);
-            if (anthropicKey) localStorage.setItem('dash_apikey', anthropicKey);
-            goScreen('s-cal');
-            seedAndLoad();
-          } else {
-            pin = '';
-            updateDots();
-            showToastOnLogin('Incorrect PIN');
-          }
-        }).catch(function() { pin = ''; updateDots(); showToastOnLogin('Error - try again'); });
+
+  var entry = buildPinEntry(box, function(pin) {
+    var uid = hashPin(pin);
+    db.collection('users').doc(uid).get().then(function(doc) {
+      if (doc.exists) {
+        currentUserPin = uid;
+        anthropicKey = doc.data().apikey || null;
+        localStorage.setItem('dash_pin', uid);
+        if (anthropicKey) localStorage.setItem('dash_apikey', anthropicKey);
+        goScreen('s-cal');
+        seedAndLoad();
+      } else {
+        entry.reset();
+        showToastOnLogin('Incorrect PIN');
       }
-    });
-    padEl.appendChild(b);
+    }).catch(function() { entry.reset(); showToastOnLogin('Error - try again'); });
   });
-  box.appendChild(padEl);
+
   var newBtn = E('button', 'login-link');
   newBtn.textContent = 'New user? Set up account';
   newBtn.addEventListener('click', showLoginSetup);
@@ -1278,29 +1330,7 @@ function showLoginSetup() {
     box.innerHTML = '';
     box.appendChild(T('div', 'login-title', 'Create your PIN'));
     box.appendChild(T('div', 'login-sub', 'Choose a 4-digit PIN to protect your dashboard'));
-    var pin = '';
-    var dots = D('pin-display');
-    for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
-    box.appendChild(dots);
-    function updateDots() {
-      dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
-        d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
-      });
-    }
-    var padEl = D('pin-pad');
-    var nums = ['1','2','3','4','5','6','7','8','9','','0','del'];
-    nums.forEach(function(n) {
-      if (n === '') { padEl.appendChild(D('')); return; }
-      var isDel = n === 'del';
-      var b = Btn(isDel ? 'pin-btn del' : 'pin-btn', isDel ? String.fromCharCode(9003) : n, function() {
-        if (isDel) { pin = pin.slice(0, -1); }
-        else if (pin.length < 4) { pin += n; }
-        updateDots();
-        if (pin.length === 4) { chosenPin = pin; setTimeout(showStep2, 200); }
-      });
-      padEl.appendChild(b);
-    });
-    box.appendChild(padEl);
+    buildPinEntry(box, function(pin) { chosenPin = pin; setTimeout(showStep2, 200); });
     var back = E('button', 'login-link');
     back.textContent = 'Already have an account? Log in';
     back.addEventListener('click', showLoginEntry);
@@ -1311,32 +1341,10 @@ function showLoginSetup() {
     box.innerHTML = '';
     box.appendChild(T('div', 'login-title', 'Confirm PIN'));
     box.appendChild(T('div', 'login-sub', 'Enter your PIN again to confirm'));
-    var pin = '';
-    var dots = D('pin-display');
-    for (var i = 0; i < 4; i++) { dots.appendChild(D('pin-dot')); }
-    box.appendChild(dots);
-    function updateDots() {
-      dots.querySelectorAll('.pin-dot').forEach(function(d, i) {
-        d.className = 'pin-dot' + (i < pin.length ? ' filled' : '');
-      });
-    }
-    var padEl = D('pin-pad');
-    var nums = ['1','2','3','4','5','6','7','8','9','','0','del'];
-    nums.forEach(function(n) {
-      if (n === '') { padEl.appendChild(D('')); return; }
-      var isDel = n === 'del';
-      var b = Btn(isDel ? 'pin-btn del' : 'pin-btn', isDel ? String.fromCharCode(9003) : n, function() {
-        if (isDel) { pin = pin.slice(0, -1); }
-        else if (pin.length < 4) { pin += n; }
-        updateDots();
-        if (pin.length === 4) {
-          if (pin === chosenPin) { setTimeout(showStep3, 200); }
-          else { pin = ''; updateDots(); showToastOnLogin('PINs do not match - try again'); }
-        }
-      });
-      padEl.appendChild(b);
+    var entry = buildPinEntry(box, function(pin) {
+      if (pin === chosenPin) { setTimeout(showStep3, 200); }
+      else { entry.reset(); showToastOnLogin('PINs do not match - try again'); }
     });
-    box.appendChild(padEl);
   }
 
   function showStep3() {
