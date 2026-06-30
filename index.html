@@ -238,18 +238,18 @@ input,select,textarea{font-size:16px!important}
 
 <div class="screen active" id="s-login">
   <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;background:var(--tx)">
-    <div style="color:#fff;font-size:24px;font-weight:700;margin-bottom:4px">My Dashboard</div>
-    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px">Training + nutrition tracker</div>
-    <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:360px">
-      <div id="login-content">
-        <div id="auth-loading" style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 0">
-          <div class="spinner" style="width:20px;height:20px;border-width:2.5px"></div>
-          <div style="font-size:12px;color:var(--mu);text-align:center;line-height:1.4">Checking your session...</div>
-          <div id="auth-slow-msg" style="display:none;font-size:11px;color:var(--mu);text-align:center;line-height:1.4;max-width:260px">
-            This is taking longer than usual.
-            <button id="auth-slow-retry" style="display:block;margin:8px auto 0;background:none;border:0.5px solid var(--bd);border-radius:7px;padding:6px 14px;font-size:11px;color:var(--tx);cursor:pointer">Reload page</button>
-          </div>
-        </div>
+    <div id="auth-loading" style="display:flex;flex-direction:column;align-items:center;gap:14px">
+      <div class="spinner" style="width:22px;height:22px;border-width:2.5px;border-color:rgba(255,255,255,.2);border-top-color:#fff"></div>
+      <div id="auth-slow-msg" style="display:none;font-size:11px;color:rgba(255,255,255,.6);text-align:center;line-height:1.4;max-width:240px">
+        This is taking longer than usual.
+        <button id="auth-slow-retry" style="display:block;margin:10px auto 0;background:none;border:0.5px solid rgba(255,255,255,.3);border-radius:7px;padding:6px 14px;font-size:11px;color:#fff;cursor:pointer">Reload page</button>
+      </div>
+    </div>
+    <div id="login-form-wrap" style="display:none;width:100%;max-width:360px">
+      <div style="color:#fff;font-size:24px;font-weight:700;margin-bottom:4px;text-align:center">My Dashboard</div>
+      <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px;text-align:center">Training + nutrition tracker</div>
+      <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%">
+        <div id="login-content"></div>
       </div>
     </div>
   </div>
@@ -865,11 +865,13 @@ function renderFoodForm(){
   fSavedMeals=f.meals?JSON.parse(JSON.stringify(f.meals)):[];
   fWater=f.water||0;fProtein=f.protein||'';fCaff=f.caffeine||0;
   fItems=[];fLookupResult=null;fMealType='Lunch';
-  // A previously saved value counts as "manual" so reopening this day won't
-  // silently overwrite what was explicitly saved before, but a blank day
-  // starts fresh and will auto-fill as items are added.
-  fCaffManual=!!f.caffeine;
-  fProteinManual=!!f.protein;
+  // Always recalculate from the actual logged items when a day is opened —
+  // a previously saved value doesn't mean the user manually set it, since it
+  // could itself have been auto-calculated in an earlier session. "Manual"
+  // only becomes true once the user explicitly edits the field themselves
+  // within the current editing session (see the input/click handlers below).
+  fCaffManual=false;
+  fProteinManual=false;
   var dateObj=new Date(sd+'T12:00:00');
   document.getElementById('food-date-lbl').textContent=DS[dateObj.getDay()]+' '+dateObj.getDate()+' '+MS[dateObj.getMonth()];
   buildFoodForm();
@@ -985,16 +987,30 @@ function buildFoodForm(){
     fSavedMeals.forEach(function(m,mi){
       var mv=D('meal-view');
       var mh=D('meal-hdr');ap(mh,T('span','meal-nm',m.name),T('span','meal-kc',(m.kcal||0)+' kcal'));
-      var rmBtn=Btn('btn-sm','Remove',function(){fSavedMeals.splice(mi,1);saveAllFood(false);});
+      var rmBtn=Btn('btn-sm','Remove meal',function(){fSavedMeals.splice(mi,1);saveAllFood(false);});
       rmBtn.style.cssText='padding:2px 8px;font-size:10px';
       mh.appendChild(rmBtn);mv.appendChild(mh);
       if(m.items&&m.items.length){
         var mb=D('meal-body');
-        m.items.forEach(function(it){
+        m.items.forEach(function(it,ii){
           var miEl=D('mi');
           var mn=T('span','mi-n',it.n);
           if(it.p||it.c||it.fat)mn.textContent+=(' (P:'+Math.round(it.p||0)+'g C:'+Math.round(it.c||0)+'g F:'+Math.round(it.fat||0)+'g)');
-          ap(miEl,mn,T('span','mi-k',it.k+' kcal'));mb.appendChild(miEl);
+          var mk=T('span','mi-k',it.k+' kcal');
+          var delBtn=Btn('mi-del','x',(function(mIdx,iIdx){
+            return function(){
+              fSavedMeals[mIdx].items.splice(iIdx,1);
+              if(fSavedMeals[mIdx].items.length===0){
+                // No items left in this meal — remove the empty meal too
+                // rather than leaving a zero-item meal card behind.
+                fSavedMeals.splice(mIdx,1);
+              } else {
+                fSavedMeals[mIdx].kcal=fSavedMeals[mIdx].items.reduce(function(a,x){return a+(x.k||0);},0);
+              }
+              saveAllFood(false);
+            };
+          })(mi,ii));
+          ap(miEl,mn,mk,delBtn);mb.appendChild(miEl);
         });
         mv.appendChild(mb);
       }
@@ -1696,7 +1712,15 @@ function authErrorMessage(e) {
   return map[e.code] || 'Sign in failed — try again.';
 }
 
+function revealLoginForm() {
+  var loading = document.getElementById('auth-loading');
+  var formWrap = document.getElementById('login-form-wrap');
+  if (loading) loading.style.display = 'none';
+  if (formWrap) formWrap.style.display = 'block';
+}
+
 function showLoginEntry() {
+  revealLoginForm();
   var box = document.getElementById('login-content');
   box.innerHTML = '';
   box.appendChild(T('div', 'login-title', 'Welcome back'));
