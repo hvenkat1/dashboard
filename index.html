@@ -111,6 +111,18 @@ input,select,button,textarea{font-family:inherit}
 .food-search input:focus{border-color:var(--tx)}
 .search-btn{padding:10px 14px;background:var(--tx);color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .search-btn:active{opacity:.8}
+#food-search-input{width:100%;padding:10px 12px;border:0.5px solid var(--bd);border-radius:9px;font-size:13px;background:var(--sf);color:var(--tx);outline:none}
+#food-search-input:focus{border-color:var(--tx)}
+.food-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--sf);border:0.5px solid var(--bd);border-radius:9px;box-shadow:var(--shadow);max-height:240px;overflow-y:auto;z-index:30}
+.food-dd-item{padding:10px 12px;cursor:pointer;border-bottom:0.5px solid var(--bd);font-size:13px}
+.food-dd-item:last-child{border-bottom:none}
+.food-dd-item:active{background:var(--s2)}
+.food-dd-item .ddn{font-weight:600;color:var(--tx)}
+.food-dd-item .ddb{font-size:11px;color:var(--mu);margin-top:2px}
+.food-dd-empty{padding:12px;font-size:12px;color:var(--mu);text-align:center}
+.qty-unit-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.qty-unit-row input,.qty-unit-row select{padding:10px 12px;border:0.5px solid var(--bd);border-radius:9px;font-size:13px;background:var(--sf);color:var(--tx);outline:none}
+.qty-unit-row input:focus,.qty-unit-row select:focus{border-color:var(--tx)}
 .lookup-result{background:var(--s2);border:0.5px solid var(--bd);border-radius:9px;padding:10px 12px;margin-bottom:8px}
 .lr-name{font-size:13px;font-weight:600;margin-bottom:4px}
 .lr-detail{font-size:11px;color:var(--mu);line-height:1.5}
@@ -144,6 +156,9 @@ input,select,button,textarea{font-family:inherit}
 .btn-blue{background:var(--bbg);color:var(--bl);border:0.5px solid var(--bbd);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer}
 .btn-green{background:var(--gbg);color:var(--gr);border:0.5px solid var(--gbd);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer}
 .btn-gap{margin-top:10px}
+.dayflip-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.dayflip-btn{padding:11px 10px;background:var(--sf);color:var(--tx);border:0.5px solid var(--bd);border-radius:var(--ra);font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow)}
+.dayflip-btn:active{background:var(--s2)}
 .wbtns{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
 .wb{padding:7px 12px;border:0.5px solid var(--bd);border-radius:8px;background:var(--bg);font-size:12px;font-weight:600;cursor:pointer;color:var(--mu)}
 .wb.on{background:var(--bbg);color:var(--bl);border-color:var(--bbd)}
@@ -364,6 +379,8 @@ var sd=todayKey(),cy=new Date().getFullYear(),cm=new Date().getMonth();
 var AD={};
 var fMealType='Lunch',fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
 var fLookupResult=null;
+var fSelectedFood=null;  // {name, per100} once a search result is chosen
+var fSearchTimer=null;
 var tStatus='plan';
 var wValue='';
 
@@ -495,12 +512,14 @@ function renderMyPlan(){
   var body=document.getElementById('myplan-body');
   body.innerHTML='';
 
-  var jumpRow=D('');jumpRow.style.cssText='margin-bottom:14px';
-  jumpRow.appendChild(Btn('btn-out','Jump to today\'s suggestion',function(){
-    sd=todayKey();
-    renderMyPlan();
-  }));
-  body.appendChild(jumpRow);
+  if(sd!==todayKey()){
+    var jumpRow=D('');jumpRow.style.cssText='margin-bottom:14px';
+    jumpRow.appendChild(Btn('btn btn-out','Jump to today\'s suggestion',function(){
+      sd=todayKey();
+      renderMyPlan();
+    }));
+    body.appendChild(jumpRow);
+  }
 
   var plan=getPlan(sd);
   var dateObj=new Date(sd+'T12:00:00');
@@ -530,17 +549,18 @@ function renderMyPlan(){
   card.appendChild(cb);
   body.appendChild(card);
 
-  var navRow=D('');navRow.style.cssText='display:flex;gap:8px;margin-top:10px';
-  navRow.appendChild(Btn('btn-out','Previous day',function(){
+  var navRow=D('dayflip-nav');
+  var prevBtn=Btn('dayflip-btn','‹ Previous day',function(){
     var d=new Date(sd+'T12:00:00');d.setDate(d.getDate()-1);
     sd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
     renderMyPlan();
-  }));
-  navRow.appendChild(Btn('btn-out','Next day',function(){
+  });
+  var nextBtn=Btn('dayflip-btn','Next day ›',function(){
     var d=new Date(sd+'T12:00:00');d.setDate(d.getDate()+1);
     sd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
     renderMyPlan();
-  }));
+  });
+  ap(navRow,prevBtn,nextBtn);
   body.appendChild(navRow);
 
   var note=D('');note.style.cssText='font-size:11px;color:var(--mu);margin-top:14px;line-height:1.5';
@@ -863,24 +883,60 @@ function buildFoodForm(){
   body.appendChild(mtRow);
 
   body.appendChild(T('div','slbl','Add food item'));
-  var hint=T('div','','Type a food name and quantity - calories and macros are estimated automatically');
+  var hint=T('div','','Search for a food, then enter how much you had');
   hint.style.cssText='font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.5';
   body.appendChild(hint);
 
-  var searchRow=D('food-search');
-  var sInput=Inp('food-search-input','text','e.g. 100g rice or 1 cup sambar');
-  sInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doFoodLookup();}});
-  var sBtn=Btn('search-btn','Look up',doFoodLookup);
-  ap(searchRow,sInput,sBtn);body.appendChild(searchRow);
+  fSelectedFood=null;
+
+  var foodSearchWrap=D('');foodSearchWrap.style.cssText='position:relative;margin-bottom:10px';
+  var sInput=Inp('food-search-input','text','Search for a food (e.g. rice, sambar, banana)');
+  sInput.autocomplete='off';
+  var dropdown=D('food-dropdown');dropdown.id='food-dropdown';
+  dropdown.style.display='none';
+  foodSearchWrap.appendChild(sInput);
+  foodSearchWrap.appendChild(dropdown);
+  body.appendChild(foodSearchWrap);
+
+  sInput.addEventListener('input',function(){
+    fSelectedFood=null;
+    qtyRow.style.display='none';
+    addRow.style.display='none';
+    var q=sInput.value.trim();
+    if(fSearchTimer)clearTimeout(fSearchTimer);
+    if(q.length<2){dropdown.style.display='none';dropdown.innerHTML='';return;}
+    fSearchTimer=setTimeout(function(){ searchFoods(q,dropdown,sInput,qtyRow,addRow); },350);
+  });
+  sInput.addEventListener('blur',function(){
+    setTimeout(function(){dropdown.style.display='none';},150);
+  });
+  sInput.addEventListener('focus',function(){
+    if(dropdown.innerHTML)dropdown.style.display='block';
+  });
+
+  var qtyRow=D('qty-unit-row');qtyRow.style.display='none';
+  var qtyIn=Inp('food-qty-input','number','Quantity, e.g. 200');
+  var unitSel=E('select','qty-unit-select');unitSel.id='food-unit-select';
+  [['g','grams (g)'],['kg','kilograms (kg)'],['ml','millilitres (ml)'],['l','litres (l)']].forEach(function(opt){
+    var o=E('option');o.value=opt[0];o.textContent=opt[1];unitSel.appendChild(o);
+  });
+  ap(qtyRow,qtyIn,unitSel);
+  body.appendChild(qtyRow);
+
+  var addRow=D('');addRow.style.cssText='display:none;margin-top:8px';
+  var addToMealBtn=Btn('btn-green','Add to meal',function(){
+    addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow);
+  });
+  addRow.appendChild(addToMealBtn);
+  body.appendChild(addRow);
 
   var manualLink=E('button','login-link');
   manualLink.textContent='Can\'t find it? Enter manually instead';
   manualLink.style.cssText='text-align:left;margin:0 0 8px;padding:0;font-size:12px';
   manualLink.addEventListener('click',function(){
     var area=document.getElementById('lookup-area');
-    var q=document.getElementById('food-search-input');
     area.innerHTML='';
-    showManualEntry(area,q?q.value.trim():'');
+    showManualEntry(area,sInput.value.trim());
   });
   body.appendChild(manualLink);
 
@@ -966,237 +1022,174 @@ function buildFoodForm(){
   body.appendChild(Btn('btn btn-gap','Save food log',function(){saveAllFood(true);}));
 }
 
-function doFoodLookup(){
-  var input=document.getElementById('food-search-input');
-  if(!input||!input.value.trim())return;
-  var query=input.value.trim();
-  var area=document.getElementById('lookup-area');
-  area.innerHTML='';
-  var loading=D('loading');loading.appendChild(D('spinner'));loading.appendChild(T('span','','Looking up '+query+' ...'));
-  area.appendChild(loading);
+// Built-in Indian dishes, scoped to a per-100g/100ml reference so they can be
+// scaled by the user's own quantity+unit input rather than relying on fixed
+// portion strings. Searched first since it's instant and covers dishes Open
+// Food Facts often doesn't have good entries for.
+var INDIAN_DB_PER100={
+  'rice':{k:130,p:2.7,c:28,fat:0.3,kind:'g'},
+  'sambar':{k:80,p:4,c:12,fat:2,kind:'ml'},
+  'mor kuzhambu':{k:60,p:2,c:8,fat:2,kind:'ml'},
+  'rasam':{k:45,p:2,c:7,fat:1,kind:'ml'},
+  'dal':{k:120,p:8,c:18,fat:2,kind:'g'},
+  'kootu':{k:90,p:4,c:12,fat:3,kind:'g'},
+  'idli':{k:80,p:2.5,c:16,fat:0.6,kind:'g'},
+  'dosa':{k:168,p:4,c:30,fat:4,kind:'g'},
+  'upma':{k:130,p:3,c:23,fat:3.5,kind:'g'},
+  'pongal':{k:150,p:4,c:26,fat:4,kind:'g'},
+  'curd rice':{k:100,p:3.5,c:18,fat:2.5,kind:'g'},
+  'chapati':{k:280,p:9,c:48,fat:5,kind:'g'},
+  'parotta':{k:330,p:7,c:50,fat:11,kind:'g'},
+  'biryani veg':{k:175,p:4,c:29,fat:5,kind:'g'},
+  'biryani chicken':{k:210,p:12,c:26,fat:6,kind:'g'},
+  'biryani mutton':{k:230,p:13,c:25,fat:8,kind:'g'},
+  'hyderabadi biryani':{k:188,p:5,c:30,fat:5.5,kind:'g'},
+  'paneer':{k:265,p:18,c:3,fat:20,kind:'g'},
+  'paneer tikka':{k:230,p:16,c:8,fat:15,kind:'g'},
+  'paneer 65':{k:245,p:15,c:10,fat:17,kind:'g'},
+  'paneer butter masala':{k:150,p:6,c:8,fat:10,kind:'g'},
+  'chicken 65':{k:220,p:18,c:10,fat:13,kind:'g'},
+  'chicken curry':{k:140,p:13,c:4,fat:8,kind:'g'},
+  'chicken lollipop':{k:200,p:18,c:9,fat:11,kind:'g'},
+  'prawn':{k:100,p:18,c:1,fat:2,kind:'g'},
+  'fish curry':{k:140,p:15,c:4,fat:7,kind:'g'},
+  'egg boiled':{k:155,p:13,c:1.1,fat:11,kind:'g'},
+  'egg fried':{k:196,p:14,c:0.8,fat:15,kind:'g'},
+  'omelette':{k:190,p:13,c:2,fat:14,kind:'g'},
+  'coffee with milk':{k:45,p:2,c:5,fat:2,kind:'ml'},
+  'tea with milk':{k:38,p:1.5,c:4.5,fat:1.5,kind:'ml'},
+  'milk':{k:62,p:3.2,c:4.8,fat:3.3,kind:'ml'},
+  'curd':{k:60,p:3.5,c:4.7,fat:3.1,kind:'g'},
+  'banana':{k:89,p:1.1,c:23,fat:0.3,kind:'g'},
+  'apple':{k:52,p:0.3,c:14,fat:0.2,kind:'g'},
+  'grapes':{k:69,p:0.6,c:18,fat:0.2,kind:'g'},
+  'watermelon':{k:30,p:0.6,c:7.5,fat:0.2,kind:'g'},
+  'biscuit':{k:480,p:7,c:75,fat:18,kind:'g'},
+  'vada':{k:280,p:8,c:30,fat:14,kind:'g'},
+  'puri':{k:330,p:6,c:42,fat:16,kind:'g'},
+  'mountain dew':{k:44,p:0,c:11.5,fat:0,kind:'ml'},
+  'coca cola':{k:42,p:0,c:10.6,fat:0,kind:'ml'},
+  'coconut water':{k:19,p:0.7,c:3.7,fat:0.2,kind:'ml'},
+  'peanuts':{k:567,p:26,c:16,fat:49,kind:'g'},
+  'almonds':{k:579,p:21,c:22,fat:50,kind:'g'},
+  'roti':{k:297,p:11,c:50,fat:6,kind:'g'},
+  'naan':{k:310,p:9,c:50,fat:8,kind:'g'},
+  'palak paneer':{k:115,p:6,c:5,fat:8.5,kind:'g'},
+  'dal makhani':{k:140,p:7,c:14,fat:7,kind:'g'},
+  'cluster beans':{k:26,p:1.8,c:4.8,fat:0.3,kind:'g'},
+  'protein shake':{k:400,p:80,c:17,fat:7,kind:'g'},
+};
 
-  var indianDB={
-    'rice':{'100g':{k:130,p:2.7,c:28,fat:0.3},'1 cup cooked':{k:206,p:4.3,c:45,fat:0.4},'200g':{k:260,p:5.4,c:56,fat:0.6},'400g':{k:520,p:10.8,c:112,fat:1.2}},
-    'sambar':{'1 cup':{k:80,p:4,c:12,fat:2},'100ml':{k:40,p:2,c:6,fat:1},'half cup':{k:40,p:2,c:6,fat:1}},
-    'mor kuzhambu':{'1 cup':{k:60,p:2,c:8,fat:2},'100ml':{k:35,p:1.5,c:5,fat:1.5}},
-    'rasam':{'1 cup':{k:45,p:2,c:7,fat:1},'100ml':{k:25,p:1,c:4,fat:0.5}},
-    'dal':{'1 cup':{k:180,p:12,c:28,fat:3},'100g':{k:120,p:8,c:18,fat:2}},
-    'kootu':{'1 cup':{k:120,p:6,c:16,fat:4},'100g':{k:90,p:4,c:12,fat:3}},
-    'idli':{'1 piece':{k:80,p:2,c:16,fat:0.5},'2 pieces':{k:160,p:4,c:32,fat:1},'3 pieces':{k:240,p:6,c:48,fat:1.5}},
-    'dosa':{'1 plain':{k:168,p:4,c:30,fat:4},'1 masala':{k:220,p:5,c:36,fat:7},'half masala':{k:110,p:2.5,c:18,fat:3.5},'1 rava':{k:175,p:4,c:28,fat:5},'half rava':{k:88,p:2,c:14,fat:2.5}},
-    'upma':{'1 cup':{k:180,p:4,c:32,fat:5},'100g':{k:130,p:3,c:23,fat:3.5}},
-    'pongal':{'1 cup':{k:220,p:6,c:38,fat:6}},
-    'curd rice':{'1 cup':{k:180,p:6,c:32,fat:4},'100g':{k:100,p:3.5,c:18,fat:2.5},'half cup':{k:90,p:3,c:16,fat:2}},
-    'chapati':{'1 piece':{k:80,p:3,c:15,fat:1.5},'2 pieces':{k:160,p:6,c:30,fat:3}},
-    'parotta':{'1 piece':{k:180,p:4,c:28,fat:6},'2 pieces':{k:360,p:8,c:56,fat:12}},
-    'biryani veg':{'half plate':{k:350,p:8,c:58,fat:10},'full plate':{k:700,p:16,c:116,fat:20},'quarter plate':{k:175,p:4,c:29,fat:5}},
-    'biryani chicken':{'half plate':{k:420,p:24,c:52,fat:12},'full plate':{k:840,p:48,c:104,fat:24},'quarter plate':{k:210,p:12,c:26,fat:6}},
-    'biryani mutton':{'half plate':{k:460,p:26,c:50,fat:16},'full plate':{k:920,p:52,c:100,fat:32},'quarter plate':{k:230,p:13,c:25,fat:8}},
-    'hyderabadi biryani':{'half plate':{k:375,p:10,c:60,fat:11},'full plate':{k:750,p:20,c:120,fat:22},'quarter plate':{k:188,p:5,c:30,fat:5.5}},
-    'paneer':{'100g':{k:265,p:18,c:3,fat:20},'50g':{k:133,p:9,c:1.5,fat:10},'250g':{k:663,p:45,c:7.5,fat:50}},
-    'paneer tikka':{'100g':{k:230,p:16,c:8,fat:15},'250g':{k:575,p:40,c:20,fat:37.5},'200g':{k:460,p:32,c:16,fat:30},'half plate':{k:300,p:21,c:10,fat:19}},
-    'paneer 65':{'100g':{k:245,p:15,c:10,fat:17},'250g':{k:613,p:37.5,c:25,fat:42.5}},
-    'paneer butter masala':{'1 serving':{k:320,p:14,c:18,fat:22},'100g':{k:150,p:6,c:8,fat:10}},
-    'chicken 65':{'half plate':{k:280,p:22,c:12,fat:16},'full plate':{k:560,p:44,c:24,fat:32},'quarter plate':{k:140,p:11,c:6,fat:8},'100g':{k:220,p:18,c:10,fat:13}},
-    'chicken curry':{'1 serving':{k:280,p:26,c:8,fat:16},'half serving':{k:140,p:13,c:4,fat:8}},
-    'chicken lollipop':{'1 piece':{k:90,p:8,c:4,fat:5},'2 pieces':{k:180,p:16,c:8,fat:10},'3 pieces':{k:270,p:24,c:12,fat:15}},
-    'prawn':{'100g':{k:100,p:18,c:1,fat:2},'half plate':{k:180,p:24,c:8,fat:6},'quarter plate':{k:90,p:12,c:4,fat:3}},
-    'fish curry':{'1 serving':{k:200,p:22,c:6,fat:10}},
-    'egg boiled':{'1 egg':{k:78,p:6,c:1,fat:5},'2 eggs':{k:156,p:12,c:2,fat:10},'1.5 eggs':{k:117,p:9,c:1.5,fat:7.5}},
-    'egg fried':{'1 egg':{k:90,p:6,c:1,fat:7},'2 eggs':{k:180,p:12,c:2,fat:14}},
-    'omelette':{'1 egg':{k:95,p:7,c:1,fat:7},'2 egg':{k:190,p:14,c:2,fat:14}},
-    'coffee with milk':{'1 cup':{k:45,p:2,c:5,fat:2},'2 cups':{k:90,p:4,c:10,fat:4},'3 cups':{k:135,p:6,c:15,fat:6}},
-    'coffee without sugar':{'1 cup':{k:20,p:1,c:2,fat:1}},
-    'tea with milk':{'1 cup':{k:35,p:1.5,c:4,fat:1.5},'2 cups':{k:70,p:3,c:8,fat:3}},
-    'milk':{'1 cup':{k:149,p:8,c:12,fat:8},'100ml':{k:62,p:3.2,c:4.8,fat:3.3}},
-    'curd':{'100g':{k:60,p:3.5,c:4.7,fat:3.1},'1 cup':{k:150,p:8,c:11,fat:8}},
-    'banana':{'1 medium':{k:89,p:1.1,c:23,fat:0.3},'1 small':{k:72,p:0.9,c:19,fat:0.2}},
-    'apple':{'1 medium':{k:95,p:0.5,c:25,fat:0.3}},
-    'grapes':{'100g':{k:69,p:0.6,c:18,fat:0.2},'1 cup':{k:104,p:1,c:27,fat:0.2}},
-    'watermelon':{'1 cup':{k:46,p:1,c:11,fat:0.2},'100g':{k:30,p:0.6,c:7.5,fat:0.2}},
-    'biscuit':{'1 piece':{k:35,p:0.5,c:5.5,fat:1.5},'2 pieces':{k:70,p:1,c:11,fat:3},'4 pieces':{k:140,p:2,c:22,fat:6}},
-    'vada':{'1 piece':{k:110,p:4,c:14,fat:5},'2 pieces':{k:220,p:8,c:28,fat:10}},
-    'puri':{'1 piece':{k:110,p:2,c:14,fat:5},'2 pieces':{k:220,p:4,c:28,fat:10}},
-    'mountain dew':{'200ml':{k:88,p:0,c:23,fat:0},'330ml':{k:145,p:0,c:38,fat:0},'500ml':{k:220,p:0,c:57,fat:0}},
-    'coca cola':{'200ml':{k:84,p:0,c:21,fat:0},'330ml':{k:139,p:0,c:35,fat:0}},
-    'coconut water':{'1 cup':{k:46,p:2,c:9,fat:0.5},'200ml':{k:38,p:1.5,c:7.5,fat:0.4}},
-    'peanuts':{'100g':{k:567,p:26,c:16,fat:49},'handful':{k:170,p:8,c:5,fat:15}},
-    'almonds':{'10 pieces':{k:70,p:2.5,c:2.5,fat:6},'100g':{k:579,p:21,c:22,fat:50}},
-    'roti':{'1 piece':{k:80,p:3,c:15,fat:1.5},'2 pieces':{k:160,p:6,c:30,fat:3}},
-    'naan':{'1 piece':{k:260,p:8,c:45,fat:5}},
-    'butter naan':{'1 piece':{k:320,p:8,c:45,fat:12}},
-    'palak paneer':{'1 serving':{k:230,p:12,c:10,fat:17}},
-    'dal makhani':{'1 serving':{k:280,p:14,c:28,fat:14}},
-    'cluster beans':{'100g':{k:26,p:1.8,c:4.8,fat:0.3},'1 cup':{k:35,p:2.4,c:6.4,fat:0.4}},
-    'beans stir fry':{'1 cup':{k:80,p:3,c:12,fat:2}},
-    '555':{'quarter plate':{k:160,p:14,c:6,fat:9},'half plate':{k:320,p:28,c:12,fat:18}},
-    'protein shake':{'1 scoop':{k:120,p:24,c:5,fat:2}},
-  };
+function searchFoods(query,dropdown,sInput,qtyRow,addRow){
+  dropdown.innerHTML='';
+  var loading=D('food-dd-empty');loading.textContent='Searching...';
+  dropdown.appendChild(loading);dropdown.style.display='block';
 
-  var queryLower=query.toLowerCase();
-  var matched=null;var matchedKey='';var matchedQty='';
-  var userQtyG=null;
-  var didScale=false;
-
-  var numGMatch=queryLower.match(/(\d+\.?\d*)\s*(g|gm|gms|gram|grams|ml)/);
-  var halfMatch=queryLower.match(/half/);
-  var quarterMatch=queryLower.match(/quarter/);
-  var fullMatch=queryLower.match(/full/);
-
-  if(numGMatch){userQtyG=parseFloat(numGMatch[1]);}
-
-  // Pulls a numeric base quantity (in g or ml) out of a key like "200ml" or
-  // "100g" or "half plate" (returns null for non-numeric portion names).
-  function baseQtyFromKey(qty){
-    var m=qty.match(/(\d+\.?\d*)\s*(g|gm|gms|gram|grams|ml)/);
-    return m?parseFloat(m[1]):null;
-  }
-
-  var dbKeys=Object.keys(indianDB);
-  for(var ki=0;ki<dbKeys.length;ki++){
-    var key=dbKeys[ki];
-    if(queryLower.indexOf(key)>=0||key.split(' ').every(function(w){return queryLower.indexOf(w)>=0;})){
-      var qkeys=Object.keys(indianDB[key]);
-
-      // 1) Exact quantity match, e.g. user typed "200ml" and "200ml" exists.
-      if(userQtyG){
-        for(var qx=0;qx<qkeys.length;qx++){
-          if(baseQtyFromKey(qkeys[qx])===userQtyG){
-            matched=indianDB[key][qkeys[qx]];matchedKey=key;matchedQty=qkeys[qx];
-            break;
-          }
-        }
-      }
-
-      // 2) No exact match — scale from whichever numeric entry is closest,
-      // using its own base quantity as the scaling reference (not hardcoded 100g).
-      if(!matched&&userQtyG){
-        var refQty=null,refKey='';
-        for(var qi2=0;qi2<qkeys.length;qi2++){
-          var bq=baseQtyFromKey(qkeys[qi2]);
-          if(bq!==null){refQty=bq;refKey=qkeys[qi2];break;}
-        }
-        if(refQty){
-          var ref=indianDB[key][refKey];
-          var ratio=userQtyG/refQty;
-          matched={
-            k:Math.round(ref.k*ratio),
-            p:Math.round(ref.p*ratio*10)/10,
-            c:Math.round(ref.c*ratio*10)/10,
-            fat:Math.round(ref.fat*ratio*10)/10
-          };
-          var unitMatch=queryLower.match(/(g|gm|gms|gram|grams|ml)/);
-          var unit=unitMatch?unitMatch[1]:'g';
-          matchedKey=key;matchedQty=userQtyG+(unit==='ml'?'ml':'g');
-          didScale=true;
-        }
-      }
-
-      // 3) Word-based portions (half/quarter/full) or a qty string the query
-      // literally contains, e.g. "half plate".
-      if(!matched){
-        for(var qi=0;qi<qkeys.length;qi++){
-          var qty=qkeys[qi];
-          if(halfMatch&&qty.indexOf('half')>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
-          if(quarterMatch&&qty.indexOf('quarter')>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
-          if(fullMatch&&qty.indexOf('full')>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
-          if(queryLower.indexOf(qty)>=0){matched=indianDB[key][qty];matchedKey=key;matchedQty=qty;break;}
-        }
-      }
-
-      // 4) Genuinely nothing matched the requested quantity — fall back to the
-      // first entry, but flag it as an approximation rather than a scaled value.
-      if(!matched){
-        matched=indianDB[key][qkeys[0]];matchedKey=key;matchedQty=qkeys[0];
-        matchedQty+=' (approx — exact quantity not in database)';
-      }
-      break;
+  var results=[];
+  var ql=query.toLowerCase();
+  Object.keys(INDIAN_DB_PER100).forEach(function(key){
+    if(key.indexOf(ql)>=0||ql.indexOf(key)>=0){
+      results.push({name:key.charAt(0).toUpperCase()+key.slice(1),source:'Indian dishes',per100:INDIAN_DB_PER100[key]});
     }
-  }
-
-  if(matched){
-    area.innerHTML='';
-    showLookupResult(area,{
-      name:matchedKey.charAt(0).toUpperCase()+matchedKey.slice(1),
-      quantity:matchedQty,
-      kcal:matched.k,protein_g:matched.p,carbs_g:matched.c,fat_g:matched.fat,
-      notes:'From Indian food database'+(didScale?' - scaled from nearest known portion':'')
-    });
-    return;
-  }
-
-  if(anthropicKey){
-    fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':anthropicKey,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:'Nutritional info for: "'+query+'". JSON only, no markdown: {"name":"...","quantity":"...","kcal":0,"protein_g":0,"carbs_g":0,"fat_g":0,"notes":"..."}'}]})
-    }).then(function(r){return r.json();}).then(function(data){
-      area.innerHTML='';
-      var text=data.content&&data.content[0]?data.content[0].text:'';
-      var clean=text.replace(/```json|```/g,'').trim();
-      var info=JSON.parse(clean);
-      showLookupResult(area,info);
-    }).catch(function(){tryOpenFoodFacts();});
-    return;
-  }
-
-  function tryOpenFoodFacts(){
-  var searchTerm=query.replace(/\d+g|\d+ml|\d+ g|\d+ ml/g,'').trim();
-  fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(searchTerm)+'&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments,serving_size,quantity')
-  .then(function(r){return r.json();})
-  .then(function(data){
-    area.innerHTML='';
-    if(data.products&&data.products.length>0){
-      var p=data.products[0];
-      var n=p.nutriments;
-      var qMatch=query.match(/(\d+\.?\d*)\s*(g|gm|gms|ml|kg)/i);
-      var qAmt=qMatch?parseFloat(qMatch[1]):100;
-      var qUnit=qMatch?(qMatch[2].toLowerCase()):'g';
-      if(qUnit==='kg')qAmt=qAmt*1000;
-      var per100=n['energy-kcal_100g']||(n['energy_100g']?n['energy_100g']/4.184:null);
-      if(per100){
-        var ratio=qAmt/100;
-        showLookupResult(area,{
-          name:p.product_name||searchTerm,
-          quantity:qAmt+qUnit,
-          kcal:Math.round(per100*ratio),
-          protein_g:Math.round((n['proteins_100g']||0)*ratio*10)/10,
-          carbs_g:Math.round((n['carbohydrates_100g']||0)*ratio*10)/10,
-          fat_g:Math.round((n['fat_100g']||0)*ratio*10)/10,
-          notes:'Open Food Facts - scaled to '+qAmt+qUnit
-        });
-      } else {
-        showManualEntry(area,query);
-      }
-    } else {
-      showManualEntry(area,query);
-    }
-  }).catch(function(){
-    area.innerHTML='';
-    showManualEntry(area,query);
   });
-  }
-  tryOpenFoodFacts();
+
+  fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(query)+'&search_simple=1&action=process&json=1&page_size=8&fields=product_name,nutriments,brands')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.products){
+        data.products.forEach(function(p){
+          if(!p.product_name)return;
+          var n=p.nutriments||{};
+          var kcal100=n['energy-kcal_100g']||(n['energy_100g']?n['energy_100g']/4.184:null);
+          if(kcal100===null||kcal100===undefined)return;
+          results.push({
+            name:p.product_name+(p.brands?' ('+p.brands.split(',')[0]+')':''),
+            source:'Open Food Facts',
+            per100:{
+              k:Math.round(kcal100),
+              p:n['proteins_100g']||0,
+              c:n['carbohydrates_100g']||0,
+              fat:n['fat_100g']||0,
+              kind:'g'
+            }
+          });
+        });
+      }
+      renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
+    })
+    .catch(function(){
+      renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
+    });
 }
 
-function showLookupResult(area,info){
-  var lr=D('lookup-result');
-  var nameRow=D('row-flex');
-  nameRow.appendChild(T('div','lr-name',info.name+' ('+info.quantity+')'));
-  nameRow.appendChild(T('div','badge b-done',info.kcal+' kcal'));
-  lr.appendChild(nameRow);
-  var detail=D('lr-detail');
-  detail.textContent='Protein: '+info.protein_g+'g   Carbs: '+info.carbs_g+'g   Fat: '+info.fat_g+'g';
-  if(info.notes){var nd=T('div','',info.notes);nd.style.cssText='font-size:10px;color:var(--mu);margin-top:3px';lr.appendChild(nd);}
-  lr.appendChild(detail);
-  var actions=D('lr-actions');
-  actions.appendChild(Btn('btn-green','Add to meal',function(){
-    fItems.push({n:info.name+' ('+info.quantity+')',k:info.kcal,p:info.protein_g,c:info.carbs_g,fat:info.fat_g});
-    var inp=document.getElementById('food-search-input');if(inp)inp.value='';
-    area.innerHTML='';buildFoodForm();
-  }));
-  lr.appendChild(actions);area.appendChild(lr);
+function renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow){
+  dropdown.innerHTML='';
+  if(!results.length){
+    var empty=D('food-dd-empty');
+    empty.textContent='No matches — try "Enter manually instead" below';
+    dropdown.appendChild(empty);
+    dropdown.style.display='block';
+    return;
+  }
+  results.slice(0,12).forEach(function(r){
+    var item=D('food-dd-item');
+    item.appendChild(T('div','ddn',r.name));
+    item.appendChild(T('div','ddb',r.source+' · '+r.per100.k+' kcal per 100'+(r.per100.kind==='ml'?'ml':'g')));
+    // mousedown fires before the input's blur, so selection registers even
+    // though the dropdown is about to be hidden by the blur handler.
+    item.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      fSelectedFood=r;
+      sInput.value=r.name;
+      dropdown.style.display='none';
+      qtyRow.style.display='grid';
+      addRow.style.display='block';
+      var qtyIn=document.getElementById('food-qty-input');
+      var unitSel=document.getElementById('food-unit-select');
+      if(unitSel)unitSel.value=r.per100.kind==='ml'?'ml':'g';
+      if(qtyIn)qtyIn.focus();
+    });
+    dropdown.appendChild(item);
+  });
+  dropdown.style.display='block';
 }
+
+function unitToGramsOrMl(qty,unit){
+  // Normalises any unit into the base 100g/100ml reference used by per100
+  // nutrition data — kg and l just need converting to g/ml first.
+  if(unit==='kg')return qty*1000;
+  if(unit==='l')return qty*1000;
+  return qty;
+}
+
+function addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow){
+  if(!fSelectedFood){showToast('Pick a food from the list first');return;}
+  var qty=parseFloat(qtyIn.value);
+  if(!qty||qty<=0){showToast('Enter a quantity');return;}
+  var unit=unitSel.value;
+  var baseQty=unitToGramsOrMl(qty,unit);
+  var per100=fSelectedFood.per100;
+  var ratio=baseQty/100;
+  var unitLabel=unit==='kg'?'kg':unit==='l'?'L':unit;
+
+  fItems.push({
+    n:fSelectedFood.name+' ('+qty+unitLabel+')',
+    k:Math.round(per100.k*ratio),
+    p:Math.round(per100.p*ratio*10)/10,
+    c:Math.round(per100.c*ratio*10)/10,
+    fat:Math.round(per100.fat*ratio*10)/10
+  });
+
+  fSelectedFood=null;
+  sInput.value='';
+  qtyIn.value='';
+  dropdown.style.display='none';
+  qtyRow.style.display='none';
+  addRow.style.display='none';
+  buildFoodForm();
+}
+
+
 
 function showManualEntry(area,query){
   var lr=D('lookup-result');
@@ -1226,17 +1219,6 @@ function showManualEntry(area,query){
   });
   addBtn.style.marginTop='8px';
   lr.appendChild(addBtn);area.appendChild(lr);
-}
-
-function doFoodLookupWithQuery(query){
-  var area=document.getElementById('lookup-area');
-  if(!area)return;
-  area.innerHTML='';
-  var loading=D('loading');loading.appendChild(D('spinner'));loading.appendChild(T('span','','Looking up ...'));
-  area.appendChild(loading);
-  var input=document.getElementById('food-search-input');
-  if(input)input.value=query;
-  setTimeout(doFoodLookup,100);
 }
 
 function saveMeal(){
@@ -1535,7 +1517,7 @@ function showLoginEntry() {
     var email = emailIn.value.trim();
     if (!email) { showToastOnLogin('Enter your email first, then tap this again'); return; }
     auth.sendPasswordResetEmail(email).then(function() {
-      showToastOnLogin('Password reset email sent');
+      showToastOnLogin('Password reset email sent', 'success');
     }).catch(function(e) { showToastOnLogin(authErrorMessage(e)); });
   });
   box.appendChild(forgotBtn);
@@ -1596,9 +1578,22 @@ function showLoginSetup() {
   box.appendChild(back);
 }
 
-function showToastOnLogin(msg) {
-  var t = document.getElementById('tst');
-  if (t) { t.textContent = msg; t.classList.add('show'); setTimeout(function() { t.classList.remove('show'); }, 2500); }
+function showToastOnLogin(msg, type) {
+  // Login feedback renders inline, right under the form, instead of as a
+  // floating toast — the login screen has no bottom nav for a toast to sit
+  // near, so a floating message just ends up stranded in empty dark space.
+  var box = document.getElementById('login-content');
+  if (!box) return;
+  var existing = document.getElementById('login-err');
+  if (existing) existing.remove();
+  var isSuccess = type === 'success';
+  var err = T('div', '', msg);
+  err.id = 'login-err';
+  err.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:9px;font-size:12px;font-weight:600;text-align:center;line-height:1.4;'
+    + (isSuccess
+      ? 'background:var(--gbg);color:var(--gr);border:0.5px solid var(--gbd)'
+      : 'background:var(--rbg);color:var(--re);border:0.5px solid var(--rbd)');
+  box.appendChild(err);
 }
 
 
