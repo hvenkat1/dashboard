@@ -959,6 +959,9 @@ function buildFoodForm(){
     var tv=T('div','text-bold',totalKc+' kcal');tv.style.color='var(--bl)';
     totalRow.appendChild(tv);body.appendChild(totalRow);
     body.appendChild(Btn('btn','Save meal - '+fMealType,saveMeal));
+    var saveHint=T('div','','Or just tap "Save food log" at the bottom — these items are included either way.');
+    saveHint.style.cssText='font-size:10px;color:var(--mu);margin-top:6px;line-height:1.4';
+    body.appendChild(saveHint);
     body.appendChild(T('div','','\u00a0'));
   }
 
@@ -1337,6 +1340,17 @@ function saveMeal(){
 }
 
 function saveAllFood(goToDayAfter){
+  // If there are items added via search-and-quantity but the user tapped
+  // "Save food log" directly without first tapping "Save meal", fold them in
+  // here automatically rather than silently dropping them — this was the
+  // actual bug: items shown in the "Items in this meal" preview were never
+  // making it into fSavedMeals (and therefore never into Firestore) unless
+  // the user explicitly used the separate Save meal button first.
+  if(fItems.length){
+    var kc=fItems.reduce(function(a,i){return a+i.k;},0);
+    fSavedMeals.push({name:fMealType,kcal:kc,items:fItems.slice()});
+    fItems=[];
+  }
   var cf=document.getElementById('cf-in');
   var caff=cf?(parseInt(cf.value)||0):fCaff;
   var total=fSavedMeals.reduce(function(a,m){return a+(m.kcal||0);},0);
