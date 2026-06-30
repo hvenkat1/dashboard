@@ -67,7 +67,7 @@ input,select,button,textarea{font-family:inherit}
 .menu-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:0.5px solid var(--bd);background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left;font-family:inherit}
 .menu-row:last-child{border-bottom:none}
 .menu-row:active{background:var(--s2)}
-.menu-icon{font-size:18px;width:24px;text-align:center;flex-shrink:0}
+.menu-icon{width:24px;height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--mu)}
 .menu-label{font-size:14px;font-weight:500;color:var(--tx);flex:1}
 .menu-chevron{font-size:16px;color:var(--mu)}
 .slbl{font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 8px}
@@ -159,7 +159,7 @@ input,select,button,textarea{font-family:inherit}
 .bnav-lbl{font-size:9px;font-weight:600;color:var(--mu)}
 .bnav-item.on .bnav-lbl{color:var(--tx)}
 .empty{text-align:center;padding:24px 16px;color:var(--mu);font-size:12px;line-height:1.7;background:var(--s2);border-radius:var(--ra);border:0.5px dashed var(--fa)}
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--tx);color:#fff;padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--tx);color:#fff;padding:10px 18px;border-radius:14px;font-size:12px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88%;width:max-content;text-align:center;line-height:1.4}
 .toast.show{opacity:1}
 .row-flex{display:flex;justify-content:space-between;align-items:center}
 .kbar-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
@@ -321,7 +321,7 @@ input,select,textarea{font-size:16px!important}
 <div class="screen" id="s-myplan">
   <div class="topbar">
     <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
-    <div class="topbar-title">My plan</div>
+    <div class="topbar-title">Training plan</div>
   </div>
   <div class="sbody" id="myplan-body"></div>
 </div>
@@ -441,19 +441,47 @@ function renderMenu(){
   body.innerHTML='';
   var list=D('menu-list');
 
-  function row(icon,label,fn){
+  function svgIcon(paths){
+    var ns='http://www.w3.org/2000/svg';
+    var svg=document.createElementNS(ns,'svg');
+    svg.setAttribute('viewBox','0 0 24 24');
+    svg.setAttribute('width','18');
+    svg.setAttribute('height','18');
+    svg.setAttribute('fill','none');
+    svg.setAttribute('stroke','currentColor');
+    svg.setAttribute('stroke-width','2');
+    svg.setAttribute('stroke-linecap','round');
+    svg.setAttribute('stroke-linejoin','round');
+    paths.forEach(function(d){
+      var p=document.createElementNS(ns,'path');
+      p.setAttribute('d',d);
+      svg.appendChild(p);
+    });
+    return svg;
+  }
+
+  var ICONS={
+    calendar:['M3 4h18v18H3z','M16 2v4','M8 2v4','M3 10h18'],
+    insights:['M3 3v18h18','M7 16l4-6 4 3 5-8'],
+    plan:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
+    settings:['M12 1v4','M12 19v4','M4.22 4.22l2.83 2.83','M16.95 16.95l2.83 2.83','M1 12h4','M19 12h4','M4.22 19.78l2.83-2.83','M16.95 7.05l2.83-2.83','M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z']
+  };
+
+  function row(iconKey,label,fn){
     var r=E('button','menu-row');
-    r.appendChild(T('span','menu-icon',icon));
+    var iconWrap=T('span','menu-icon','');
+    iconWrap.appendChild(svgIcon(ICONS[iconKey]));
+    r.appendChild(iconWrap);
     r.appendChild(T('span','menu-label',label));
     r.appendChild(T('span','menu-chevron',String.fromCharCode(8250)));
     r.addEventListener('click',fn);
     return r;
   }
 
-  list.appendChild(row(String.fromCharCode(128197),'Calendar',function(){ goScreen('s-cal'); renderCal(); }));
-  list.appendChild(row(String.fromCharCode(128202),'Insights',function(){ goInsights(); }));
-  list.appendChild(row(String.fromCharCode(128170),'My plan',function(){ goMyPlan(); }));
-  list.appendChild(row(String.fromCharCode(9881),'Settings',function(){ showSettings(); }));
+  list.appendChild(row('calendar','Calendar',function(){ goScreen('s-cal'); renderCal(); }));
+  list.appendChild(row('insights','Insights',function(){ goInsights(); }));
+  list.appendChild(row('plan','Training plan',function(){ goMyPlan(); }));
+  list.appendChild(row('settings','Settings',function(){ showSettings(); }));
 
   body.appendChild(list);
 }
@@ -1452,20 +1480,20 @@ auth.onAuthStateChanged(function(user) {
 
 function authErrorMessage(e) {
   var map = {
-    'auth/invalid-email': 'That email address looks invalid.',
-    'auth/user-not-found': 'No account found with that email. Tap "Create an account" below if you\'re new here.',
+    'auth/invalid-email': 'That email looks invalid.',
+    'auth/user-not-found': 'No account with that email.',
     'auth/wrong-password': 'Incorrect password.',
-    'auth/invalid-credential': 'Incorrect email or password — or no account exists yet. Tap "Create an account" if you\'re new here.',
-    'auth/invalid-login-credentials': 'Incorrect email or password — or no account exists yet. Tap "Create an account" if you\'re new here.',
-    'auth/user-disabled': 'This account has been disabled.',
-    'auth/email-already-in-use': 'An account already exists with that email.',
-    'auth/weak-password': 'Password should be at least 6 characters.',
-    'auth/too-many-requests': 'Too many attempts. Try again in a moment.',
-    'auth/network-request-failed': 'Network error — check your connection.'
+    'auth/invalid-credential': 'Wrong email or password.',
+    'auth/invalid-login-credentials': 'Wrong email or password.',
+    'auth/user-disabled': 'This account is disabled.',
+    'auth/email-already-in-use': 'Account already exists.',
+    'auth/weak-password': 'Password needs 6+ characters.',
+    'auth/too-many-requests': 'Too many attempts — try later.',
+    'auth/network-request-failed': 'Network error — check connection.'
   };
   // Never let a raw Firebase error string reach the UI, even for codes we
   // haven't explicitly mapped — fall back to a generic, still-readable message.
-  return map[e.code] || 'Something went wrong signing in. Check your details and try again.';
+  return map[e.code] || 'Sign in failed — try again.';
 }
 
 function showLoginEntry() {
