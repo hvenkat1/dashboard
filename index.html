@@ -1747,11 +1747,9 @@ auth.onAuthStateChanged(function(user) {
     db.collection('users').doc(user.uid).get().then(function(doc) {
       anthropicKey = (doc.exists && doc.data().apikey) ? doc.data().apikey : null;
       clearTimeout(authTimeoutId);
-      goScreen('s-cal');
       seedAndLoad();
     }).catch(function() {
       clearTimeout(authTimeoutId);
-      goScreen('s-cal');
       seedAndLoad();
     });
   } else {
@@ -1942,11 +1940,10 @@ function seedAndLoad(){
   if(!ref)return;
   ref.get().then(function(snap){
     snap.forEach(function(d){AD[d.id]=d.data();});
-    renderCal();
     sd=todayKey();
-    renderDayView();
-    goScreen('s-day');
-  }).catch(function(e){console.error(e);renderCal();});
+    renderCal();
+    goScreen('s-cal');
+  }).catch(function(e){console.error(e);renderCal();goScreen('s-cal');});
 }
 
 </script>
