@@ -381,6 +381,7 @@ var fMealType='Lunch',fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
 var fLookupResult=null;
 var fSelectedFood=null;  // {name, per100} once a search result is chosen
 var fSearchTimer=null;
+var fCaffManual=false, fProteinManual=false; // true once user edits these by hand
 var tStatus='plan';
 var wValue='';
 
@@ -855,6 +856,11 @@ function renderFoodForm(){
   fSavedMeals=f.meals?JSON.parse(JSON.stringify(f.meals)):[];
   fWater=f.water||0;fProtein=f.protein||'';fCaff=f.caffeine||0;
   fItems=[];fLookupResult=null;fMealType='Lunch';
+  // A previously saved value counts as "manual" so reopening this day won't
+  // silently overwrite what was explicitly saved before, but a blank day
+  // starts fresh and will auto-fill as items are added.
+  fCaffManual=!!f.caffeine;
+  fProteinManual=!!f.protein;
   var dateObj=new Date(sd+'T12:00:00');
   document.getElementById('food-date-lbl').textContent=DS[dateObj.getDay()]+' '+dateObj.getDate()+' '+MS[dateObj.getMonth()];
   buildFoodForm();
@@ -997,21 +1003,52 @@ function buildFoodForm(){
   });
   body.appendChild(wbtns);
 
+  // Derive caffeine and protein automatically from everything logged so far
+  // today (saved meals + items not yet folded in). Both stay editable —
+  // auto-fill is a starting point, not a lock, since manual entries and
+  // Open Food Facts items don't carry caffeine data and protein thresholds
+  // are necessarily approximate.
+  var allItemsForCalc=[];
+  fSavedMeals.forEach(function(m){ if(m.items) allItemsForCalc=allItemsForCalc.concat(m.items); });
+  allItemsForCalc=allItemsForCalc.concat(fItems);
+  var autoCaff=Math.round(allItemsForCalc.reduce(function(a,i){return a+(i.caff||0);},0));
+  var autoProteinG=allItemsForCalc.reduce(function(a,i){return a+(i.p||0);},0);
+
+  function proteinLevelFromGrams(g){
+    if(g<=0)return '';
+    if(g<30)return 'Low';
+    if(g<55)return 'Low-moderate';
+    if(g<80)return 'Moderate';
+    if(g<110)return 'Good';
+    return 'High';
+  }
+
+  // Only auto-fill if the user hasn't manually edited this value for today
+  // (so reopening a day you set by hand won't silently overwrite it, but a
+  // value that's still purely auto-derived keeps updating as items change).
+  if(!fCaffManual && autoCaff>0) fCaff=autoCaff;
+  if(!fProteinManual && autoProteinG>0) fProtein=proteinLevelFromGrams(autoProteinG);
+
   body.appendChild(T('div','slbl','Caffeine (mg)'));
-  var cfHint=T('div','','1 coffee with milk ~90mg, 1 tea with milk ~50mg');
+  var cfHint=T('div','',(autoCaff>0&&!fCaffManual)?('Auto-estimated from logged drinks: '+autoCaff+'mg — adjust if needed'):'1 coffee with milk ~90mg, 1 tea with milk ~50mg');
   cfHint.style.cssText='font-size:10px;color:var(--mu);margin-bottom:6px';
   body.appendChild(cfHint);
   var cfIn=Inp('cf-in','number','e.g. 200',fCaff||'');
   cfIn.style.cssText='width:100%;padding:10px 12px;border:0.5px solid var(--bd);border-radius:9px;font-size:14px;background:var(--bg);color:var(--tx);outline:none';
+  cfIn.addEventListener('input',function(){ fCaffManual=true; });
   body.appendChild(cfIn);
 
   body.appendChild(T('div','slbl','Overall protein level'));
+  var pHint=T('div','',(autoProteinG>0&&!fProteinManual)?('Auto-estimated from logged food: ~'+Math.round(autoProteinG)+'g protein — adjust if needed'):'Estimated automatically once you log food with protein content');
+  pHint.style.cssText='font-size:10px;color:var(--mu);margin-bottom:6px';
+  body.appendChild(pHint);
   var pbtns=D('pbtns');
   ['Low','Low-moderate','Moderate','Good','High'].forEach(function(p){
     var pc2=PCOLS[p]||['var(--mu)','var(--bg)','var(--bd)'];
     var isOn=fProtein===p;
     var pb=Btn('pb',p,function(){
       fProtein=p;
+      fProteinManual=true;
       pbtns.querySelectorAll('button').forEach(function(b){
         var on=b.textContent===p;var c=PCOLS[b.textContent]||['var(--mu)','var(--bg)','var(--bd)'];
         b.style.background=on?c[1]:'';b.style.color=on?c[0]:'';b.style.borderColor=on?c[0]:'';
@@ -1143,21 +1180,21 @@ var INDIAN_DB_PER100={
   'curd':{k:60,p:3.5,c:4.7,fat:3.1,kind:'g'},
   'buttermilk':{k:25,p:1.5,c:3,fat:0.5,kind:'ml'},
   'cheese':{k:402,p:25,c:1.3,fat:33,kind:'g'},
-  // Drinks — coffee/tea variants
-  'coffee with milk':{k:45,p:2,c:5,fat:2,kind:'ml'},
-  'coffee with milk and sugar':{k:60,p:2,c:9,fat:2,kind:'ml'},
-  'black coffee':{k:2,p:0.2,c:0.3,fat:0,kind:'ml'},
-  'coffee without sugar':{k:20,p:1,c:2,fat:1,kind:'ml'},
-  'filter coffee':{k:55,p:2,c:7,fat:2,kind:'ml'},
-  'decaf coffee':{k:2,p:0.1,c:0.3,fat:0,kind:'ml'},
-  'tea with milk':{k:38,p:1.5,c:4.5,fat:1.5,kind:'ml'},
-  'tea with milk and sugar':{k:50,p:1.5,c:8,fat:1.5,kind:'ml'},
-  'black tea':{k:1,p:0,c:0.3,fat:0,kind:'ml'},
-  'green tea':{k:1,p:0,c:0.2,fat:0,kind:'ml'},
-  'lemon tea':{k:15,p:0,c:4,fat:0,kind:'ml'},
+  // Drinks — coffee/tea variants. caff = mg caffeine per 100ml/100g.
+  'coffee with milk':{k:45,p:2,c:5,fat:2,kind:'ml',caff:40},
+  'coffee with milk and sugar':{k:60,p:2,c:9,fat:2,kind:'ml',caff:40},
+  'black coffee':{k:2,p:0.2,c:0.3,fat:0,kind:'ml',caff:60},
+  'coffee without sugar':{k:20,p:1,c:2,fat:1,kind:'ml',caff:45},
+  'filter coffee':{k:55,p:2,c:7,fat:2,kind:'ml',caff:50},
+  'decaf coffee':{k:2,p:0.1,c:0.3,fat:0,kind:'ml',caff:2},
+  'tea with milk':{k:38,p:1.5,c:4.5,fat:1.5,kind:'ml',caff:25},
+  'tea with milk and sugar':{k:50,p:1.5,c:8,fat:1.5,kind:'ml',caff:25},
+  'black tea':{k:1,p:0,c:0.3,fat:0,kind:'ml',caff:35},
+  'green tea':{k:1,p:0,c:0.2,fat:0,kind:'ml',caff:25},
+  'lemon tea':{k:15,p:0,c:4,fat:0,kind:'ml',caff:25},
   // Other drinks
-  'mountain dew':{k:44,p:0,c:11.5,fat:0,kind:'ml'},
-  'coca cola':{k:42,p:0,c:10.6,fat:0,kind:'ml'},
+  'mountain dew':{k:44,p:0,c:11.5,fat:0,kind:'ml',caff:13},
+  'coca cola':{k:42,p:0,c:10.6,fat:0,kind:'ml',caff:10},
   'sprite':{k:39,p:0,c:9.8,fat:0,kind:'ml'},
   'fanta':{k:43,p:0,c:11,fat:0,kind:'ml'},
   'coconut water':{k:19,p:0.7,c:3.7,fat:0.2,kind:'ml'},
@@ -1286,7 +1323,8 @@ function addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow){
     k:Math.round(per100.k*ratio),
     p:Math.round(per100.p*ratio*10)/10,
     c:Math.round(per100.c*ratio*10)/10,
-    fat:Math.round(per100.fat*ratio*10)/10
+    fat:Math.round(per100.fat*ratio*10)/10,
+    caff:Math.round((per100.caff||0)*ratio)
   });
 
   fSelectedFood=null;
