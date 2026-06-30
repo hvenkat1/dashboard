@@ -1027,57 +1027,152 @@ function buildFoodForm(){
 // portion strings. Searched first since it's instant and covers dishes Open
 // Food Facts often doesn't have good entries for.
 var INDIAN_DB_PER100={
+  // Rice & rice dishes
   'rice':{k:130,p:2.7,c:28,fat:0.3,kind:'g'},
-  'sambar':{k:80,p:4,c:12,fat:2,kind:'ml'},
-  'mor kuzhambu':{k:60,p:2,c:8,fat:2,kind:'ml'},
-  'rasam':{k:45,p:2,c:7,fat:1,kind:'ml'},
-  'dal':{k:120,p:8,c:18,fat:2,kind:'g'},
-  'kootu':{k:90,p:4,c:12,fat:3,kind:'g'},
-  'idli':{k:80,p:2.5,c:16,fat:0.6,kind:'g'},
-  'dosa':{k:168,p:4,c:30,fat:4,kind:'g'},
-  'upma':{k:130,p:3,c:23,fat:3.5,kind:'g'},
-  'pongal':{k:150,p:4,c:26,fat:4,kind:'g'},
+  'brown rice':{k:123,p:2.6,c:26,fat:1,kind:'g'},
   'curd rice':{k:100,p:3.5,c:18,fat:2.5,kind:'g'},
-  'chapati':{k:280,p:9,c:48,fat:5,kind:'g'},
-  'parotta':{k:330,p:7,c:50,fat:11,kind:'g'},
+  'lemon rice':{k:160,p:3,c:26,fat:5,kind:'g'},
+  'tamarind rice':{k:170,p:3,c:28,fat:5.5,kind:'g'},
+  'jeera rice':{k:165,p:3,c:27,fat:5,kind:'g'},
+  'fried rice':{k:175,p:4,c:28,fat:5.5,kind:'g'},
+  'pulao':{k:170,p:4,c:27,fat:5,kind:'g'},
+  // Biryani
   'biryani veg':{k:175,p:4,c:29,fat:5,kind:'g'},
   'biryani chicken':{k:210,p:12,c:26,fat:6,kind:'g'},
   'biryani mutton':{k:230,p:13,c:25,fat:8,kind:'g'},
+  'biryani egg':{k:195,p:8,c:27,fat:6,kind:'g'},
   'hyderabadi biryani':{k:188,p:5,c:30,fat:5.5,kind:'g'},
+  // South Indian breakfast
+  'idli':{k:80,p:2.5,c:16,fat:0.6,kind:'g'},
+  'dosa':{k:168,p:4,c:30,fat:4,kind:'g'},
+  'masala dosa':{k:220,p:5,c:36,fat:7,kind:'g'},
+  'rava dosa':{k:175,p:4,c:28,fat:5,kind:'g'},
+  'set dosa':{k:160,p:4,c:28,fat:4,kind:'g'},
+  'uttapam':{k:165,p:4,c:28,fat:4,kind:'g'},
+  'upma':{k:130,p:3,c:23,fat:3.5,kind:'g'},
+  'pongal':{k:150,p:4,c:26,fat:4,kind:'g'},
+  'vada':{k:280,p:8,c:30,fat:14,kind:'g'},
+  'medu vada':{k:280,p:8,c:30,fat:14,kind:'g'},
+  'pesarattu':{k:150,p:8,c:22,fat:4,kind:'g'},
+  'appam':{k:155,p:3,c:28,fat:3,kind:'g'},
+  'puttu':{k:160,p:3,c:35,fat:1,kind:'g'},
+  // North Indian breads
+  'chapati':{k:280,p:9,c:48,fat:5,kind:'g'},
+  'roti':{k:297,p:11,c:50,fat:6,kind:'g'},
+  'phulka':{k:260,p:9,c:46,fat:3,kind:'g'},
+  'parotta':{k:330,p:7,c:50,fat:11,kind:'g'},
+  'naan':{k:310,p:9,c:50,fat:8,kind:'g'},
+  'butter naan':{k:340,p:9,c:48,fat:13,kind:'g'},
+  'garlic naan':{k:330,p:9,c:50,fat:11,kind:'g'},
+  'puri':{k:330,p:6,c:42,fat:16,kind:'g'},
+  'bhatura':{k:340,p:8,c:45,fat:14,kind:'g'},
+  'paratha':{k:320,p:7,c:45,fat:12,kind:'g'},
+  'aloo paratha':{k:280,p:6,c:38,fat:11,kind:'g'},
+  // Lentils & curries
+  'dal':{k:120,p:8,c:18,fat:2,kind:'g'},
+  'dal tadka':{k:130,p:8,c:18,fat:3,kind:'g'},
+  'dal makhani':{k:140,p:7,c:14,fat:7,kind:'g'},
+  'sambar':{k:80,p:4,c:12,fat:2,kind:'ml'},
+  'mor kuzhambu':{k:60,p:2,c:8,fat:2,kind:'ml'},
+  'rasam':{k:45,p:2,c:7,fat:1,kind:'ml'},
+  'kootu':{k:90,p:4,c:12,fat:3,kind:'g'},
+  'cluster beans':{k:26,p:1.8,c:4.8,fat:0.3,kind:'g'},
+  'mixed vegetable curry':{k:90,p:3,c:11,fat:4,kind:'g'},
+  'aloo gobi':{k:110,p:3,c:14,fat:5,kind:'g'},
+  'bhindi fry':{k:95,p:2,c:9,fat:6,kind:'g'},
+  'chana masala':{k:160,p:8,c:24,fat:4,kind:'g'},
+  'rajma':{k:140,p:8,c:22,fat:2.5,kind:'g'},
+  // Paneer
   'paneer':{k:265,p:18,c:3,fat:20,kind:'g'},
   'paneer tikka':{k:230,p:16,c:8,fat:15,kind:'g'},
   'paneer 65':{k:245,p:15,c:10,fat:17,kind:'g'},
   'paneer butter masala':{k:150,p:6,c:8,fat:10,kind:'g'},
-  'chicken 65':{k:220,p:18,c:10,fat:13,kind:'g'},
+  'palak paneer':{k:115,p:6,c:5,fat:8.5,kind:'g'},
+  'kadai paneer':{k:160,p:9,c:9,fat:11,kind:'g'},
+  // Chicken & meat
   'chicken curry':{k:140,p:13,c:4,fat:8,kind:'g'},
+  'chicken 65':{k:220,p:18,c:10,fat:13,kind:'g'},
   'chicken lollipop':{k:200,p:18,c:9,fat:11,kind:'g'},
-  'prawn':{k:100,p:18,c:1,fat:2,kind:'g'},
+  'butter chicken':{k:180,p:14,c:7,fat:11,kind:'g'},
+  'tandoori chicken':{k:160,p:24,c:2,fat:6,kind:'g'},
+  'chicken tikka':{k:170,p:22,c:4,fat:7,kind:'g'},
+  'mutton curry':{k:200,p:18,c:5,fat:13,kind:'g'},
   'fish curry':{k:140,p:15,c:4,fat:7,kind:'g'},
+  'fish fry':{k:210,p:20,c:6,fat:12,kind:'g'},
+  'prawn':{k:100,p:18,c:1,fat:2,kind:'g'},
+  'prawn curry':{k:150,p:16,c:5,fat:7,kind:'g'},
+  // Eggs
   'egg boiled':{k:155,p:13,c:1.1,fat:11,kind:'g'},
   'egg fried':{k:196,p:14,c:0.8,fat:15,kind:'g'},
   'omelette':{k:190,p:13,c:2,fat:14,kind:'g'},
-  'coffee with milk':{k:45,p:2,c:5,fat:2,kind:'ml'},
-  'tea with milk':{k:38,p:1.5,c:4.5,fat:1.5,kind:'ml'},
-  'milk':{k:62,p:3.2,c:4.8,fat:3.3,kind:'ml'},
-  'curd':{k:60,p:3.5,c:4.7,fat:3.1,kind:'g'},
+  'egg curry':{k:160,p:11,c:5,fat:11,kind:'g'},
+  'egg bhurji':{k:175,p:12,c:3,fat:13,kind:'g'},
+  // Snacks
+  'samosa':{k:262,p:5,c:30,fat:13,kind:'g'},
+  'pakora':{k:280,p:7,c:25,fat:17,kind:'g'},
+  'kachori':{k:340,p:7,c:38,fat:18,kind:'g'},
+  'dhokla':{k:160,p:6,c:24,fat:4,kind:'g'},
+  'sev puri':{k:280,p:6,c:38,fat:12,kind:'g'},
+  'pani puri':{k:240,p:5,c:35,fat:9,kind:'g'},
+  'bhel puri':{k:200,p:4,c:32,fat:6,kind:'g'},
+  'biscuit':{k:480,p:7,c:75,fat:18,kind:'g'},
+  'rusk':{k:410,p:9,c:72,fat:9,kind:'g'},
+  // Sweets
+  'gulab jamun':{k:330,p:4,c:50,fat:12,kind:'g'},
+  'rasgulla':{k:186,p:4,c:32,fat:4,kind:'g'},
+  'jalebi':{k:380,p:2,c:60,fat:14,kind:'g'},
+  'kheer':{k:140,p:4,c:20,fat:5,kind:'g'},
+  'halwa':{k:300,p:3,c:45,fat:12,kind:'g'},
+  // Fruits
   'banana':{k:89,p:1.1,c:23,fat:0.3,kind:'g'},
   'apple':{k:52,p:0.3,c:14,fat:0.2,kind:'g'},
   'grapes':{k:69,p:0.6,c:18,fat:0.2,kind:'g'},
   'watermelon':{k:30,p:0.6,c:7.5,fat:0.2,kind:'g'},
-  'biscuit':{k:480,p:7,c:75,fat:18,kind:'g'},
-  'vada':{k:280,p:8,c:30,fat:14,kind:'g'},
-  'puri':{k:330,p:6,c:42,fat:16,kind:'g'},
+  'mango':{k:60,p:0.8,c:15,fat:0.4,kind:'g'},
+  'papaya':{k:43,p:0.5,c:11,fat:0.3,kind:'g'},
+  'orange':{k:47,p:0.9,c:12,fat:0.1,kind:'g'},
+  'pomegranate':{k:83,p:1.7,c:19,fat:1.2,kind:'g'},
+  'guava':{k:68,p:2.6,c:14,fat:1,kind:'g'},
+  'pineapple':{k:50,p:0.5,c:13,fat:0.1,kind:'g'},
+  // Dairy
+  'milk':{k:62,p:3.2,c:4.8,fat:3.3,kind:'ml'},
+  'toned milk':{k:48,p:3.1,c:4.7,fat:1.5,kind:'ml'},
+  'curd':{k:60,p:3.5,c:4.7,fat:3.1,kind:'g'},
+  'buttermilk':{k:25,p:1.5,c:3,fat:0.5,kind:'ml'},
+  'cheese':{k:402,p:25,c:1.3,fat:33,kind:'g'},
+  // Drinks — coffee/tea variants
+  'coffee with milk':{k:45,p:2,c:5,fat:2,kind:'ml'},
+  'coffee with milk and sugar':{k:60,p:2,c:9,fat:2,kind:'ml'},
+  'black coffee':{k:2,p:0.2,c:0.3,fat:0,kind:'ml'},
+  'coffee without sugar':{k:20,p:1,c:2,fat:1,kind:'ml'},
+  'filter coffee':{k:55,p:2,c:7,fat:2,kind:'ml'},
+  'decaf coffee':{k:2,p:0.1,c:0.3,fat:0,kind:'ml'},
+  'tea with milk':{k:38,p:1.5,c:4.5,fat:1.5,kind:'ml'},
+  'tea with milk and sugar':{k:50,p:1.5,c:8,fat:1.5,kind:'ml'},
+  'black tea':{k:1,p:0,c:0.3,fat:0,kind:'ml'},
+  'green tea':{k:1,p:0,c:0.2,fat:0,kind:'ml'},
+  'lemon tea':{k:15,p:0,c:4,fat:0,kind:'ml'},
+  // Other drinks
   'mountain dew':{k:44,p:0,c:11.5,fat:0,kind:'ml'},
   'coca cola':{k:42,p:0,c:10.6,fat:0,kind:'ml'},
+  'sprite':{k:39,p:0,c:9.8,fat:0,kind:'ml'},
+  'fanta':{k:43,p:0,c:11,fat:0,kind:'ml'},
   'coconut water':{k:19,p:0.7,c:3.7,fat:0.2,kind:'ml'},
+  'fruit juice':{k:45,p:0.5,c:11,fat:0.1,kind:'ml'},
+  'lassi':{k:90,p:3,c:11,fat:3.5,kind:'ml'},
+  'sugarcane juice':{k:60,p:0.2,c:15,fat:0,kind:'ml'},
+  'protein shake':{k:400,p:80,c:17,fat:7,kind:'g'},
+  'water':{k:0,p:0,c:0,fat:0,kind:'ml'},
+  // Nuts & misc
   'peanuts':{k:567,p:26,c:16,fat:49,kind:'g'},
   'almonds':{k:579,p:21,c:22,fat:50,kind:'g'},
-  'roti':{k:297,p:11,c:50,fat:6,kind:'g'},
-  'naan':{k:310,p:9,c:50,fat:8,kind:'g'},
-  'palak paneer':{k:115,p:6,c:5,fat:8.5,kind:'g'},
-  'dal makhani':{k:140,p:7,c:14,fat:7,kind:'g'},
-  'cluster beans':{k:26,p:1.8,c:4.8,fat:0.3,kind:'g'},
-  'protein shake':{k:400,p:80,c:17,fat:7,kind:'g'},
+  'cashews':{k:553,p:18,c:30,fat:44,kind:'g'},
+  'walnuts':{k:654,p:15,c:14,fat:65,kind:'g'},
+  'dates':{k:282,p:2.5,c:75,fat:0.4,kind:'g'},
+  'sugar':{k:387,p:0,c:100,fat:0,kind:'g'},
+  'ghee':{k:900,p:0,c:0,fat:100,kind:'g'},
+  'butter':{k:717,p:0.9,c:0.1,fat:81,kind:'g'},
+  'honey':{k:304,p:0.3,c:82,fat:0,kind:'g'},
 };
 
 function searchFoods(query,dropdown,sInput,qtyRow,addRow){
@@ -1085,17 +1180,28 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
   var loading=D('food-dd-empty');loading.textContent='Searching...';
   dropdown.appendChild(loading);dropdown.style.display='block';
 
-  var results=[];
+  var localResults=[];
   var ql=query.toLowerCase();
   Object.keys(INDIAN_DB_PER100).forEach(function(key){
     if(key.indexOf(ql)>=0||ql.indexOf(key)>=0){
-      results.push({name:key.charAt(0).toUpperCase()+key.slice(1),source:'Indian dishes',per100:INDIAN_DB_PER100[key]});
+      localResults.push({name:key.charAt(0).toUpperCase()+key.slice(1),source:'Common foods',per100:INDIAN_DB_PER100[key]});
     }
   });
+
+  // Open Food Facts is branded/packaged-product data — useful for things
+  // genuinely not in the common-foods list above, but a poor primary source
+  // for everyday dishes (it has near-zero coverage of things like "black
+  // coffee" or "butter naan"). So it's only queried as a fallback, and only
+  // when the local list comes up empty.
+  if(localResults.length>0){
+    renderFoodDropdown(localResults,dropdown,sInput,qtyRow,addRow);
+    return;
+  }
 
   fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(query)+'&search_simple=1&action=process&json=1&page_size=8&fields=product_name,nutriments,brands')
     .then(function(r){return r.json();})
     .then(function(data){
+      var results=[];
       if(data.products){
         data.products.forEach(function(p){
           if(!p.product_name)return;
@@ -1118,7 +1224,7 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
       renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
     })
     .catch(function(){
-      renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
+      renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     });
 }
 
