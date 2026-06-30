@@ -316,6 +316,7 @@ var PCOLS={'Low':['var(--re)','var(--rbg)','var(--rbd)'],'Low-moderate':['var(--
 
 function pad(n){return n<10?'0'+n:''+n;}
 function todayKey(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function isFutureDate(dk){return dk>todayKey();}
 
 // Moves the currently selected day by `delta` days (e.g. -1 or +1), keeping
 // the calendar's displayed month/year in sync, then re-renders the day view.
@@ -476,7 +477,7 @@ function renderDayView(){
   var tc=D('card');
   var th=D('card-hdr');
   th.appendChild(T('div','card-title','Training'));
-  var tBtn=Btn('card-action',d.training&&d.training.status&&d.training.status!=='plan'?'Edit':'Log',function(){renderTrainingForm();goScreen('s-training');});
+  var tBtn=Btn('card-action',isFutureDate(sd)?'Preview':(d.training&&d.training.status&&d.training.status!=='plan'?'Edit':'Log'),function(){renderTrainingForm();goScreen('s-training');});
   th.appendChild(tBtn);tc.appendChild(th);
   var tb=D('card-body');
   if(plan){
@@ -508,7 +509,7 @@ function renderDayView(){
   var fc=D('card');
   var fh=D('card-hdr');
   fh.appendChild(T('div','card-title','Food'));
-  var fBtn=Btn('card-action','Log / Edit',function(){renderFoodForm();goScreen('s-food');});
+  var fBtn=Btn('card-action',isFutureDate(sd)?'Locked':'Log / Edit',function(){renderFoodForm();goScreen('s-food');});
   fh.appendChild(fBtn);fc.appendChild(fh);
   var fb=D('card-body');
   var f=d.food||{};
@@ -565,7 +566,7 @@ function renderDayView(){
   var wc=D('card');
   var wh=D('card-hdr');
   wh.appendChild(T('div','card-title','Weight'));
-  var wBtn=Btn('card-action','Log',function(){renderWeightForm();goScreen('s-weight');});
+  var wBtn=Btn('card-action',isFutureDate(sd)?'Locked':'Log',function(){renderWeightForm();goScreen('s-weight');});
   wh.appendChild(wBtn);wc.appendChild(wh);
   var wb=D('card-body');
   if(d.weight){
@@ -600,6 +601,10 @@ function renderTrainingForm(){
   var plan=getPlan(sd);
   var body=document.getElementById('training-body');
   body.innerHTML='';
+  if(isFutureDate(sd)){
+    body.appendChild(T('div','empty','This date hasn\'t happened yet — you can preview the planned workout from the day view, but logging starts once the date arrives.'));
+    return;
+  }
   if(!plan){body.appendChild(T('div','empty','No workout planned for this date.'));return;}
   var cs=(d.training&&d.training.status)?d.training.status:(plan.t==='rest'?'rest':'plan');
   tStatus=cs;
@@ -675,6 +680,11 @@ function renderFoodForm(){
 function buildFoodForm(){
   var body=document.getElementById('food-body');
   body.innerHTML='';
+
+  if(isFutureDate(sd)){
+    body.appendChild(T('div','empty','This date hasn\'t happened yet — food logging opens up once the day arrives.'));
+    return;
+  }
 
   body.appendChild(T('div','slbl','Meal type'));
   var mtRow=D('meal-type-row');
@@ -1088,6 +1098,10 @@ function renderWeightForm(){
   var d=AD[sd]||{};
   var body=document.getElementById('weight-body');
   body.innerHTML='';
+  if(isFutureDate(sd)){
+    body.appendChild(T('div','empty','This date hasn\'t happened yet — you can log your weight once the day arrives.'));
+    return;
+  }
   var dateObj=new Date(sd+'T12:00:00');
   body.appendChild(T('div','slbl','Morning weight for '+DS[dateObj.getDay()]+' '+dateObj.getDate()+' '+MS[dateObj.getMonth()]));
   var hint=T('div','','Weigh yourself first thing in the morning, after bathroom, before eating');
