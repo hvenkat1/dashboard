@@ -1299,6 +1299,14 @@ function showSettings() {
     } else { showToast('Saved'); goScreen('s-cal'); }
   }));
   loginContent.appendChild(Btn('btn btn-out', 'Back to dashboard', function() { goScreen('s-cal'); }));
+
+  var seedDivider = D('divhr');
+  loginContent.appendChild(seedDivider);
+  loginContent.appendChild(T('div', 'login-sub', 'One-time: load the sample 27-29 June data shared earlier in chat into your account. This overwrites whatever is currently saved for those three dates.'));
+  loginContent.appendChild(Btn('btn-out btn-gap', 'Load 27-29 June sample data', function() {
+    loadSampleSeedData();
+  }));
+
   loginContent.appendChild(Btn('btn btn-out', 'Sign out', function() {
     auth.signOut().then(function() {
       localStorage.removeItem('dash_apikey');
@@ -1448,35 +1456,47 @@ function showToastOnLogin(msg) {
 }
 
 
+// One-time manual loader for the sample data shared in chat (originally
+// logged for 27-29 June 2026, the dashboard's real "today" context — fixed
+// here since the auto-seed in seedAndLoad below mistakenly used 2025 dates,
+// which would never show up against the actual calendar).
+function loadSampleSeedData(){
+  var ref=daysRef();
+  if(!ref){showToast('Not signed in');return;}
+  if(!confirm('This will overwrite any existing entries for 27, 28 and 29 June 2026 with the sample data. Continue?')) return;
+  var seed={
+    '2026-06-27':{training:{name:'Treadmill Walk',phase:'Phase 1 Wk 1-4',status:'done',kcal:520,hr:'135 bpm',effort:'Moderate',exercises:[]},food:{kcal:1050,water:4,caffeine:450,protein:'Low-moderate',meals:[{name:'Meals',kcal:910,items:[{n:'Paneer biryani half plate',k:425,p:18,c:58,fat:14},{n:'Rasam rice 2 spoons',k:60,p:2,c:12,fat:1},{n:'Curd rice 4 spoons',k:80,p:3,c:14,fat:2},{n:'Biscuits x2',k:70,p:1,c:11,fat:3},{n:'5 small rava dosa',k:275,p:6,c:42,fat:9}]},{name:'Drinks',kcal:140,items:[{n:'3 coffee with milk',k:90,p:4,c:9,fat:4},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]},weight:76.0},
+    '2026-06-28':{training:{name:'Strength A',phase:'Phase 1 Wk 1-4',status:'skip',kcal:null,hr:null,effort:null,exercises:[]},food:{kcal:1180,water:3,caffeine:350,protein:'Low',meals:[{name:'Lunch',kcal:475,items:[{n:'Hyderabadi veg biryani half',k:375,p:8,c:62,fat:11},{n:'Curd rice',k:100,p:4,c:18,fat:2}]},{name:'Dinner',kcal:595,items:[{n:'Benne masala dosa half',k:210,p:4,c:32,fat:8},{n:'Podi dosa half',k:160,p:3,c:24,fat:6},{n:'Dahi puri chaat',k:90,p:3,c:14,fat:3},{n:'Coconut poli',k:135,p:2,c:22,fat:5}]},{name:'Drinks',kcal:110,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]}},
+    '2026-06-29':{training:{name:'Treadmill Walk',phase:'Phase 1 Wk 1-4',status:'skip',kcal:null,hr:null,effort:null,exercises:[]},food:{kcal:2050,water:2,caffeine:200,protein:'High',meals:[{name:'Lunch',kcal:880,items:[{n:'400g rice',k:520,p:10,c:114,fat:1},{n:'Sambar',k:80,p:4,c:12,fat:2},{n:'Mor kuzhambu',k:60,p:2,c:8,fat:2},{n:'Kootu',k:100,p:5,c:14,fat:3},{n:'Cluster beans',k:50,p:2,c:8,fat:1},{n:'100g grapes',k:70,p:1,c:17,fat:0}]},{name:'Dinner',kcal:1070,items:[{n:'1.5 boiled eggs',k:110,p:9,c:1,fat:8},{n:'Andhra chicken 65 half',k:280,p:22,c:12,fat:16},{n:'Guntur prawn quarter',k:150,p:18,c:6,fat:7},{n:'Chicken lollipop x2',k:180,p:16,c:8,fat:10},{n:'Andhra 555 quarter',k:160,p:14,c:6,fat:9},{n:'Mountain Dew 200ml',k:90,p:0,c:23,fat:0},{n:'Chicken biryani quarter plate',k:400,p:18,c:52,fat:14}]},{name:'Drinks',kcal:100,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'1 tea with milk',k:40,p:2,c:5,fat:2}]}]},weight:77.2}
+  };
+  var keys=Object.keys(seed),i=0;
+  function next(){
+    if(i>=keys.length){
+      showToast('Sample data loaded');
+      goScreen('s-cal');
+      loadAll();
+      return;
+    }
+    var k=keys[i++];
+    AD[k]=seed[k];
+    ref.doc(k).set(seed[k],{merge:true}).then(next).catch(function(e){console.error(e);next();});
+  }
+  next();
+}
+
+// Loads this user's existing days and opens today's view. The sample data
+// for 27-29 June is no longer auto-injected here — use loadSampleSeedData()
+// (wired to the Settings screen) if you want to pull it in deliberately.
 function seedAndLoad(){
   var ref=daysRef();
   if(!ref)return;
-  ref.doc('2025-06-27').get().then(function(check){
-    function doLoad(){
-      ref.get().then(function(snap){
-        snap.forEach(function(d){AD[d.id]=d.data();});
-        renderCal();
-        sd=todayKey();
-        renderDayView();
-        goScreen('s-day');
-      }).catch(function(e){console.error(e);renderCal();});
-    }
-    if(!check.exists()){
-      var seed={
-        '2025-06-27':{training:{name:'Treadmill Walk',phase:'Phase 1 Wk 1-4',status:'done',kcal:520,hr:'135 bpm',effort:'Moderate',exercises:[]},food:{kcal:1050,water:4,caffeine:450,protein:'Low-moderate',meals:[{name:'Meals',kcal:910,items:[{n:'Paneer biryani half plate',k:425,p:18,c:58,fat:14},{n:'Rasam rice 2 spoons',k:60,p:2,c:12,fat:1},{n:'Curd rice 4 spoons',k:80,p:3,c:14,fat:2},{n:'Biscuits x2',k:70,p:1,c:11,fat:3},{n:'5 small rava dosa',k:275,p:6,c:42,fat:9}]},{name:'Drinks',kcal:140,items:[{n:'3 coffee with milk',k:90,p:4,c:9,fat:4},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]},weight:76.0},
-        '2025-06-28':{training:{name:'Strength A',phase:'Phase 1 Wk 1-4',status:'skip',kcal:null,hr:null,effort:null,exercises:[]},food:{kcal:1180,water:3,caffeine:350,protein:'Low',meals:[{name:'Lunch',kcal:475,items:[{n:'Hyderabadi veg biryani half',k:375,p:8,c:62,fat:11},{n:'Curd rice',k:100,p:4,c:18,fat:2}]},{name:'Dinner',kcal:595,items:[{n:'Benne masala dosa half',k:210,p:4,c:32,fat:8},{n:'Podi dosa half',k:160,p:3,c:24,fat:6},{n:'Dahi puri chaat',k:90,p:3,c:14,fat:3},{n:'Coconut poli',k:135,p:2,c:22,fat:5}]},{name:'Drinks',kcal:110,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]}},
-        '2025-06-29':{training:{name:'Treadmill Walk',phase:'Phase 1 Wk 1-4',status:'skip',kcal:null,hr:null,effort:null,exercises:[]},food:{kcal:2050,water:2,caffeine:200,protein:'High',meals:[{name:'Lunch',kcal:880,items:[{n:'400g rice',k:520,p:10,c:114,fat:1},{n:'Sambar',k:80,p:4,c:12,fat:2},{n:'Mor kuzhambu',k:60,p:2,c:8,fat:2},{n:'Kootu',k:100,p:5,c:14,fat:3},{n:'Cluster beans',k:50,p:2,c:8,fat:1},{n:'100g grapes',k:70,p:1,c:17,fat:0}]},{name:'Dinner',kcal:1070,items:[{n:'1.5 boiled eggs',k:110,p:9,c:1,fat:8},{n:'Andhra chicken 65 half',k:280,p:22,c:12,fat:16},{n:'Guntur prawn quarter',k:150,p:18,c:6,fat:7},{n:'Chicken lollipop x2',k:180,p:16,c:8,fat:10},{n:'Andhra 555 quarter',k:160,p:14,c:6,fat:9},{n:'Mountain Dew 200ml',k:90,p:0,c:23,fat:0},{n:'Chicken biryani quarter plate',k:400,p:18,c:52,fat:14}]},{name:'Drinks',kcal:100,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'1 tea with milk',k:40,p:2,c:5,fat:2}]}]},weight:77.2}
-      };
-      var keys=Object.keys(seed),i=0;
-      function next(){if(i>=keys.length){doLoad();return;}var k=keys[i++];AD[k]=seed[k];ref.doc(k).set(seed[k]).then(next).catch(next);}
-      next();
-    } else {doLoad();}
-  }).catch(function(){
-    ref.get().then(function(snap){
-      snap.forEach(function(d){AD[d.id]=d.data();});
-      renderCal();sd=todayKey();renderDayView();goScreen('s-day');
-    }).catch(function(){renderCal();});
-  });
+  ref.get().then(function(snap){
+    snap.forEach(function(d){AD[d.id]=d.data();});
+    renderCal();
+    sd=todayKey();
+    renderDayView();
+    goScreen('s-day');
+  }).catch(function(e){console.error(e);renderCal();});
 }
 
 </script>
