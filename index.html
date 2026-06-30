@@ -37,7 +37,8 @@ input,select,button,textarea{font-family:inherit}
 .screen{display:none;flex-direction:column;min-height:100vh}
 .screen.active{display:flex}
 .topbar{background:var(--tx);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;flex-shrink:0}
-.topbar-back{background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;padding:0;line-height:1;width:28px}
+.topbar-back{background:rgba(255,255,255,.12);border:none;color:#fff;font-size:18px;cursor:pointer;padding:0;line-height:1;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.topbar-back:active{background:rgba(255,255,255,.22)}
 .topbar-title{font-size:15px;font-weight:600;flex:1}
 .topbar-action{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;padding:4px 0}
 .sbody{flex:1;overflow-y:auto;padding:14px 14px 80px}
@@ -46,11 +47,13 @@ input,select,button,textarea{font-family:inherit}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--bd)}
 .cal-lbl{font-size:15px;font-weight:700}
 .cal-navs{display:flex;gap:5px}
-.cnav{background:none;border:0.5px solid var(--bd);border-radius:7px;width:30px;height:30px;cursor:pointer;font-size:14px;color:var(--tx);display:inline-flex;align-items:center;justify-content:center}
+.cnav{background:var(--s2);border:0.5px solid var(--bd);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:15px;color:var(--tx);display:inline-flex;align-items:center;justify-content:center}
+.cnav:active{background:var(--bd)}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);padding:8px 10px 4px}
 .cal-dow span{text-align:center;font-size:10px;font-weight:700;color:var(--mu)}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:4px 10px 12px}
-.cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;border:0.5px solid transparent;transition:background .1s}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:4px 10px 12px}
+.cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;cursor:pointer;border:0.5px solid transparent;transition:background .1s}
+.cc:active{background:var(--bd)}
 .cc.today{border-color:var(--tx)}.cc.sel{background:var(--tx)}.cc.sel .cnum{color:#fff}.cc.om .cnum{color:var(--fa)}
 .cnum{font-size:13px;font-weight:500;line-height:1}
 .cdots{display:flex;gap:2px;margin-top:3px;min-height:5px}
@@ -259,8 +262,8 @@ input,select,textarea{font-size:16px!important}
       <div class="topbar-title" id="day-title" style="line-height:1.3"></div>
       <div id="day-today-badge" style="font-size:10px;font-weight:600;color:rgba(255,255,255,.55);margin-top:1px"></div>
     </div>
-    <button class="topbar-action" id="day-prev" style="font-size:16px;padding:0 4px" title="Previous day">&#8249;</button>
-    <button class="topbar-action" id="day-next" style="font-size:16px;padding:0 4px;margin-left:2px" title="Next day">&#8250;</button>
+    <button class="topbar-back" id="day-prev" style="font-size:18px" title="Previous day">&#8249;</button>
+    <button class="topbar-back" id="day-next" style="font-size:18px" title="Next day">&#8250;</button>
   </div>
   <div class="sbody" id="day-body"></div>
 </div>
@@ -384,18 +387,37 @@ function ap(p){for(var i=1;i<arguments.length;i++)if(arguments[i])p.appendChild(
 function Btn(cls,txt,fn){var b=E('button',cls);b.textContent=txt;b.addEventListener('click',fn);return b;}
 function Inp(id,type,ph,val){var i=E('input');i.id=id;i.type=type||'text';if(ph)i.placeholder=ph;if(val!==undefined&&val!==null)i.value=String(val);return i;}
 
-var screenStack=['s-cal'];
-function goScreen(id){
+// Every call to goScreen() pushes a real browser history entry carrying the
+// screen id. This is what makes iOS Safari's edge-swipe back/forward gesture
+// work — without history entries, there's nothing for the gesture to act on.
+// The popstate listener below drives the actual screen change when the user
+// swipes back (or taps the browser's own back button); goBack() still works
+// for in-app back buttons by simply calling history.back(), so both paths
+// converge on the same popstate handler instead of doing two different things.
+function goScreen(id, opts){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
+  if(!opts||!opts.skipHistory){
+    history.pushState({screen:id}, '', '#'+id);
+  }
 }
-function goBack(id){
-  goScreen(id);
-  if(id==='s-day')renderDayView();
-  if(id==='s-cal')renderCal();
+function goBack(){
+  // Defer to the browser's own back navigation so it's indistinguishable
+  // from a swipe-back gesture — popstate below does the actual screen swap.
+  history.back();
 }
 function goInsights(){renderInsights();goScreen('s-insights');}
+
+window.addEventListener('popstate', function(e){
+  var id = (e.state && e.state.screen) ? e.state.screen : 's-cal';
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  var el = document.getElementById(id);
+  if(el) el.classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='s-day') renderDayView();
+  if(id==='s-cal') renderCal();
+});
 
 function daysRef(){
   if(!auth.currentUser) return null;
