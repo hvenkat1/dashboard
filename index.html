@@ -45,14 +45,6 @@ input,select,button,textarea{font-family:inherit}
 .topbar-back:active{background:rgba(255,255,255,.22)}
 .topbar-title{font-size:16px;font-weight:700;flex:1;letter-spacing:-.01em}
 .topbar-eyebrow{font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.07em;line-height:1.3;margin-bottom:1px}
-.topbar-day{padding:12px 14px;gap:6px}
-.topbar-day-flexgroup{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
-.topbar-day-center{flex:1;min-width:0;text-align:center}
-.topbar-day-center .topbar-title{font-size:15px;line-height:1.25}
-.topbar-day-center .topbar-eyebrow{text-align:center}
-.topbar-back-prominent{background:rgba(255,255,255,.2);width:38px;height:38px;font-size:20px;font-weight:700}
-.topbar-back-prominent:active{background:rgba(255,255,255,.32)}
-.topbar-back-spacer{width:38px;flex-shrink:0}
 .topbar-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
 .topbar-action{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;padding:8px 6px;display:flex;align-items:center}
 .sbody{flex:1;overflow-y:auto;padding:18px 14px 80px}
@@ -346,17 +338,16 @@ input,select,textarea{font-size:16px!important}
 </div>
 
 <div class="screen" id="s-day">
-  <div class="topbar topbar-day">
-    <button class="topbar-back topbar-back-prominent" onclick="goBack('s-cal')" aria-label="Back to calendar">&#8249;</button>
-    <div class="topbar-day-flexgroup">
+  <div class="topbar">
+    <button class="topbar-back" id="day-menu-btn" title="Menu" aria-label="Open menu">&#9776;</button>
+    <div style="flex:1;min-width:0">
+      <div class="topbar-eyebrow">My Day</div>
+      <div class="topbar-title" id="day-title"></div>
+    </div>
+    <div class="topbar-actions">
       <button class="topbar-back" id="day-prev" title="Previous day" aria-label="Previous day">&#8249;</button>
-      <div class="topbar-day-center">
-        <div class="topbar-eyebrow">My Day</div>
-        <div class="topbar-title" id="day-title"></div>
-      </div>
       <button class="topbar-back" id="day-next" title="Next day" aria-label="Next day">&#8250;</button>
     </div>
-    <div class="topbar-back-spacer" aria-hidden="true"></div>
   </div>
   <div class="sbody" id="day-body"></div>
 </div>
@@ -567,6 +558,7 @@ function svgIcon(paths,size){
 
 var MENU_ICONS={
   home:['M3 11l9-8 9 8','M5 10v10h14V10'],
+  today:['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z','M12 1v3','M12 20v3','M3.5 12H1','M23 12h-2.5','M4.93 4.93l1.5 1.5','M17.57 17.57l1.5 1.5','M4.93 19.07l1.5-1.5','M17.57 6.43l1.5-1.5'],
   insights:['M3 3v18h18','M7 16l4-6 4 3 5-8'],
   plan:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
   profile:['M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z','M4.5 21a7.5 7.5 0 0 1 15 0'],
@@ -591,6 +583,7 @@ function renderMenu(){
   }
 
   list.appendChild(row('home','Home',function(){ goScreen('s-cal'); renderCal(); }));
+  list.appendChild(row('today','My Day',function(){ sd=todayKey(); renderDayView(); goScreen('s-day'); }));
   list.appendChild(row('profile','Profile',function(){ goProfile(); }));
   list.appendChild(row('plan','Training plan',function(){ goMyPlan(); }));
   list.appendChild(row('settings','AI Settings',function(){ showSettings(); }));
@@ -2081,6 +2074,7 @@ document.getElementById('pm').addEventListener('click',function(){cm--;if(cm<0){
 document.getElementById('nm').addEventListener('click',function(){cm++;if(cm>11){cm=0;cy++;}renderCal();});
 document.getElementById('ny').addEventListener('click',function(){cy++;renderCal();});
 document.getElementById('menu-btn').addEventListener('click',goMenu);
+document.getElementById('day-menu-btn').addEventListener('click',goMenu);
 document.getElementById('cal-insights-btn').appendChild(svgIcon(MENU_ICONS.insights,17));
 document.getElementById('cal-insights-btn').addEventListener('click',goInsights);
 document.getElementById('cal-logout-btn').appendChild(svgIcon(MENU_ICONS.logout,17));
