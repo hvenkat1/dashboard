@@ -242,9 +242,13 @@ input,select,textarea{font-size:16px!important}
     <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px">Training + nutrition tracker</div>
     <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:360px">
       <div id="login-content">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 0">
-          <div class="spinner" style="width:22px;height:22px;border-width:3px"></div>
-          <div style="font-size:12px;color:var(--mu)">Loading...</div>
+        <div id="auth-loading" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:30px 10px">
+          <div class="spinner" style="width:24px;height:24px;border-width:3px"></div>
+          <div style="font-size:12px;color:var(--mu);text-align:center;line-height:1.5">Checking your session...</div>
+          <div id="auth-slow-msg" style="display:none;font-size:11px;color:var(--mu);text-align:center;line-height:1.5;max-width:260px">
+            This is taking longer than usual.
+            <button id="auth-slow-retry" style="display:block;margin:8px auto 0;background:none;border:0.5px solid var(--bd);border-radius:7px;padding:6px 14px;font-size:11px;color:var(--tx);cursor:pointer">Reload page</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1121,12 +1125,47 @@ var INDIAN_DB_PER100={
   'mor kuzhambu':{k:60,p:2,c:8,fat:2,kind:'ml'},
   'rasam':{k:45,p:2,c:7,fat:1,kind:'ml'},
   'kootu':{k:90,p:4,c:12,fat:3,kind:'g'},
-  'cluster beans':{k:26,p:1.8,c:4.8,fat:0.3,kind:'g'},
   'mixed vegetable curry':{k:90,p:3,c:11,fat:4,kind:'g'},
   'aloo gobi':{k:110,p:3,c:14,fat:5,kind:'g'},
   'bhindi fry':{k:95,p:2,c:9,fat:6,kind:'g'},
   'chana masala':{k:160,p:8,c:24,fat:4,kind:'g'},
   'rajma':{k:140,p:8,c:22,fat:2.5,kind:'g'},
+  // Vegetables — raw weight unless noted. South Indian vegetable
+  // preparations (poriyal, thoran, aviyal) included since these are
+  // everyday side dishes, not just raw produce.
+  'carrot':{k:41,p:0.9,c:9.6,fat:0.2,kind:'g'},
+  'radish':{k:16,p:0.7,c:3.4,fat:0.1,kind:'g'},
+  'turnip':{k:28,p:0.9,c:6.4,fat:0.1,kind:'g'},
+  'beetroot':{k:43,p:1.6,c:10,fat:0.2,kind:'g'},
+  'cabbage':{k:25,p:1.3,c:5.8,fat:0.1,kind:'g'},
+  'cauliflower':{k:25,p:1.9,c:5,fat:0.3,kind:'g'},
+  'broccoli':{k:34,p:2.8,c:7,fat:0.4,kind:'g'},
+  'brinjal':{k:25,p:1,c:6,fat:0.2,kind:'g'},
+  'eggplant':{k:25,p:1,c:6,fat:0.2,kind:'g'},
+  'bottle gourd':{k:14,p:0.6,c:3.4,fat:0.02,kind:'g'},
+  'bitter gourd':{k:17,p:1,c:3.7,fat:0.2,kind:'g'},
+  'ridge gourd':{k:20,p:0.5,c:4.4,fat:0.1,kind:'g'},
+  'pumpkin':{k:26,p:1,c:6.5,fat:0.1,kind:'g'},
+  'snake gourd':{k:18,p:0.5,c:3.3,fat:0.2,kind:'g'},
+  'capsicum':{k:20,p:0.9,c:4.6,fat:0.2,kind:'g'},
+  'bell pepper':{k:20,p:0.9,c:4.6,fat:0.2,kind:'g'},
+  'tomato':{k:18,p:0.9,c:3.9,fat:0.2,kind:'g'},
+  'onion':{k:40,p:1.1,c:9.3,fat:0.1,kind:'g'},
+  'potato':{k:77,p:2,c:17,fat:0.1,kind:'g'},
+  'sweet potato':{k:86,p:1.6,c:20,fat:0.1,kind:'g'},
+  'peas':{k:81,p:5.4,c:14,fat:0.4,kind:'g'},
+  'green beans':{k:31,p:1.8,c:7,fat:0.2,kind:'g'},
+  'cluster beans':{k:26,p:1.8,c:4.8,fat:0.3,kind:'g'},
+  'drumstick':{k:37,p:2.1,c:8.5,fat:0.2,kind:'g'},
+  'spinach':{k:23,p:2.9,c:3.6,fat:0.4,kind:'g'},
+  'fenugreek leaves':{k:49,p:4.4,c:6,fat:0.9,kind:'g'},
+  'okra':{k:33,p:1.9,c:7.5,fat:0.2,kind:'g'},
+  'lady finger':{k:33,p:1.9,c:7.5,fat:0.2,kind:'g'},
+  'cucumber':{k:15,p:0.7,c:3.6,fat:0.1,kind:'g'},
+  'aviyal':{k:95,p:3,c:10,fat:5,kind:'g'},
+  'poriyal':{k:80,p:3,c:9,fat:4,kind:'g'},
+  'thoran':{k:80,p:3,c:9,fat:4,kind:'g'},
+  'vegetable stir fry':{k:75,p:2.5,c:9,fat:3.5,kind:'g'},
   // Paneer
   'paneer':{k:265,p:18,c:3,fat:20,kind:'g'},
   'paneer tikka':{k:230,p:16,c:8,fat:15,kind:'g'},
@@ -1607,17 +1646,33 @@ function showSettings() {
 // Firebase fires this once on load (with the persisted user, if any) and
 // again on every sign-in / sign-out. This is the single source of truth —
 // no more manually checking localStorage for a stored PIN.
+// If Firebase Auth (or the Firestore read that follows it) genuinely hangs
+// — cold start, flaky connection — don't leave the user staring at a
+// spinner with no way out. After 6 seconds, reveal a message and a manual
+// reload option. Cleared only once the screen actually changes away from
+// the loading state, whether that's the calendar or the sign-in form.
+var authTimeoutId = setTimeout(function() {
+  var slow = document.getElementById('auth-slow-msg');
+  if (slow) slow.style.display = 'block';
+}, 6000);
+
+var retryBtn = document.getElementById('auth-slow-retry');
+if (retryBtn) retryBtn.addEventListener('click', function() { location.reload(); });
+
 auth.onAuthStateChanged(function(user) {
   if (user) {
     db.collection('users').doc(user.uid).get().then(function(doc) {
       anthropicKey = (doc.exists && doc.data().apikey) ? doc.data().apikey : null;
+      clearTimeout(authTimeoutId);
       goScreen('s-cal');
       seedAndLoad();
     }).catch(function() {
+      clearTimeout(authTimeoutId);
       goScreen('s-cal');
       seedAndLoad();
     });
   } else {
+    clearTimeout(authTimeoutId);
     AD = {};
     showLoginEntry();
   }
