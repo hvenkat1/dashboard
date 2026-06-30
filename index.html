@@ -125,6 +125,15 @@ input,select,button,textarea{font-family:inherit}
 .wgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0}
 .wf label{font-size:9px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
 .wf input,.wf select{width:100%;padding:9px 10px;border:0.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);outline:none}
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;margin:0 auto 10px}
+.profile-section{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.profile-section-title{font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.profile-field{margin-bottom:14px}
+.profile-field:last-child{margin-bottom:0}
+.profile-field label{display:block;font-size:11px;font-weight:600;color:var(--mu);margin-bottom:5px}
+.profile-field input,.profile-field select{width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;font-size:14px;background:var(--bg);color:var(--tx);outline:none;font-family:inherit}
+.profile-field input:focus,.profile-field select:focus{border-color:var(--accent)}
+.profile-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .wf input:focus,.wf select:focus{border-color:var(--tx)}
 .food-search{display:flex;gap:8px;margin-bottom:8px}
 .food-search input{flex:1;padding:10px 12px;border:0.5px solid var(--bd);border-radius:9px;font-size:13px;background:var(--sf);color:var(--tx);outline:none}
@@ -398,6 +407,14 @@ input,select,textarea{font-size:16px!important}
   <div class="sbody" id="myplan-body"></div>
 </div>
 
+<div class="screen" id="s-profile">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
+    <div class="topbar-title">Profile</div>
+  </div>
+  <div class="sbody" id="profile-body"></div>
+</div>
+
 <div class="toast" id="tst"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -519,6 +536,7 @@ function goBack(){
 }
 function goInsights(){renderInsights();goScreen('s-insights');}
 function goMyPlan(){renderMyPlan();goScreen('s-myplan');}
+function goProfile(){renderProfile();goScreen('s-profile');}
 function goMenu(){renderMenu();goScreen('s-menu');}
 
 function renderMenu(){
@@ -549,6 +567,7 @@ function renderMenu(){
     calendar:['M3 4h18v18H3z','M16 2v4','M8 2v4','M3 10h18'],
     insights:['M3 3v18h18','M7 16l4-6 4 3 5-8'],
     plan:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
+    profile:['M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z','M4.5 21a7.5 7.5 0 0 1 15 0'],
     settings:['M12 1v4','M12 19v4','M4.22 4.22l2.83 2.83','M16.95 16.95l2.83 2.83','M1 12h4','M19 12h4','M4.22 19.78l2.83-2.83','M16.95 7.05l2.83-2.83','M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z']
   };
 
@@ -564,6 +583,7 @@ function renderMenu(){
   }
 
   list.appendChild(row('calendar','Calendar',function(){ goScreen('s-cal'); renderCal(); }));
+  list.appendChild(row('profile','Profile',function(){ goProfile(); }));
   list.appendChild(row('insights','Insights',function(){ goInsights(); }));
   list.appendChild(row('plan','Training plan',function(){ goMyPlan(); }));
   list.appendChild(row('settings','Settings',function(){ showSettings(); }));
@@ -634,6 +654,132 @@ function renderMyPlan(){
   var note=D('');note.style.cssText='font-size:11px;color:var(--mu);margin-top:14px;line-height:1.5';
   note.textContent='This is your personal reference plan — it doesn\'t auto-fill the training log. Log your actual workout from the day view as usual.';
   body.appendChild(note);
+}
+
+// ── PROFILE ──────────────────────────────────────────────────────────────
+// Stored at users/{uid}/profile/info, separate from the day-by-day logs and
+// separate from Settings (which stays focused on app config like the API
+// key). Kept intentionally simple: one clean form, one Save action.
+var profileData={};
+
+function profileRef(){
+  if(!auth.currentUser)return null;
+  return db.collection('users').doc(auth.currentUser.uid).collection('profile').doc('info');
+}
+
+function calcAge(dob){
+  if(!dob)return null;
+  var b=new Date(dob+'T12:00:00');
+  var t=new Date();
+  var age=t.getFullYear()-b.getFullYear();
+  var m=t.getMonth()-b.getMonth();
+  if(m<0||(m===0&&t.getDate()<b.getDate()))age--;
+  return age>=0&&age<130?age:null;
+}
+
+function renderProfile(){
+  var body=document.getElementById('profile-body');
+  body.innerHTML='';
+  var ref=profileRef();
+  if(!ref){body.appendChild(T('div','empty','Sign in to manage your profile.'));return;}
+
+  body.appendChild(T('div','loading','Loading profile...'));
+  ref.get().then(function(doc){
+    profileData=doc.exists?doc.data():{};
+    buildProfileForm();
+  }).catch(function(){
+    profileData={};
+    buildProfileForm();
+  });
+}
+
+function buildProfileForm(){
+  var body=document.getElementById('profile-body');
+  body.innerHTML='';
+
+  var initial=(profileData.name||(auth.currentUser&&auth.currentUser.email)||'?').trim().charAt(0).toUpperCase();
+  var avatar=D('profile-avatar');avatar.textContent=initial;
+  body.appendChild(avatar);
+
+  function field(labelTxt,id,type,value,opts){
+    var f=D('profile-field');
+    var l=E('label');l.textContent=labelTxt;l.setAttribute('for',id);
+    f.appendChild(l);
+    var input;
+    if(type==='select'){
+      input=E('select');input.id=id;
+      (opts||[]).forEach(function(o){
+        var opt=E('option');opt.value=o;opt.textContent=o||'Select...';
+        if(value===o)opt.selected=true;
+        input.appendChild(opt);
+      });
+    } else {
+      input=E('input');input.id=id;input.type=type;
+      if(value!==undefined&&value!==null)input.value=value;
+    }
+    f.appendChild(input);
+    return f;
+  }
+
+  // Personal section
+  var personal=D('profile-section');
+  personal.appendChild(T('div','profile-section-title','Personal'));
+  personal.appendChild(field('Name','pf-name','text',profileData.name||''));
+  var dobAgeRow=D('profile-row2');
+  var dobField=field('Date of birth','pf-dob','date',profileData.dob||'');
+  var ageField=D('profile-field');
+  ageField.appendChild((function(){var l=E('label');l.textContent='Age';return l;})());
+  var ageDisplay=D('');ageDisplay.id='pf-age-display';
+  ageDisplay.style.cssText='padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;font-size:14px;color:var(--mu);background:var(--s2)';
+  var curAge=calcAge(profileData.dob);
+  ageDisplay.textContent=curAge!==null?(curAge+' years'):'—';
+  ageField.appendChild(ageDisplay);
+  ap(dobAgeRow,dobField,ageField);
+  personal.appendChild(dobAgeRow);
+  personal.appendChild(field('Gender','pf-gender','select',profileData.gender||'','Male,Female,Other,Prefer not to say'.split(',')));
+  body.appendChild(personal);
+
+  // Recalculate the displayed age live as DOB changes
+  var dobInput=document.getElementById('pf-dob');
+  if(dobInput)dobInput.addEventListener('change',function(){
+    var a=calcAge(dobInput.value);
+    var disp=document.getElementById('pf-age-display');
+    if(disp)disp.textContent=a!==null?(a+' years'):'—';
+  });
+
+  // Health metrics section
+  var health=D('profile-section');
+  health.appendChild(T('div','profile-section-title','Health metrics'));
+  var hRow=D('profile-row2');
+  ap(hRow,
+    field('Height (cm)','pf-height','number',profileData.height||''),
+    field('Current weight (kg)','pf-weight','number',profileData.weight||'')
+  );
+  health.appendChild(hRow);
+  health.appendChild(field('Target weight (kg)','pf-target','number',profileData.targetWeight||''));
+  body.appendChild(health);
+
+  body.appendChild(Btn('btn btn-gap','Save profile',saveProfile));
+}
+
+function saveProfile(){
+  var ref=profileRef();
+  if(!ref){showToast('Not signed in');return;}
+  var data={
+    name:(document.getElementById('pf-name')||{}).value||'',
+    dob:(document.getElementById('pf-dob')||{}).value||'',
+    gender:(document.getElementById('pf-gender')||{}).value||'',
+    height:parseFloat((document.getElementById('pf-height')||{}).value)||null,
+    weight:parseFloat((document.getElementById('pf-weight')||{}).value)||null,
+    targetWeight:parseFloat((document.getElementById('pf-target')||{}).value)||null
+  };
+  ref.set(data,{merge:true}).then(function(){
+    profileData=data;
+    showToast('Profile saved');
+  }).catch(function(e){
+    console.error(e);
+    showToast('Save failed');
+  });
 }
 
 
@@ -1883,13 +2029,6 @@ function showSettings() {
   }));
   loginContent.appendChild(Btn('btn btn-out', 'Back to dashboard', function() { goScreen('s-cal'); }));
 
-  var seedDivider = D('divhr');
-  loginContent.appendChild(seedDivider);
-  loginContent.appendChild(T('div', 'login-sub', 'One-time: load the sample 27-29 June data shared earlier in chat into your account. This overwrites whatever is currently saved for those three dates.'));
-  loginContent.appendChild(Btn('btn-out btn-gap', 'Load 27-29 June sample data', function() {
-    loadSampleSeedData();
-  }));
-
   loginContent.appendChild(Btn('btn btn-out', 'Sign out', function() {
     auth.signOut().then(function() {
       localStorage.removeItem('dash_apikey');
@@ -2078,37 +2217,7 @@ function showToastOnLogin(msg, type) {
 }
 
 
-// One-time manual loader for the sample data shared in chat (originally
-// logged for 27-29 June 2026, the dashboard's real "today" context — fixed
-// here since the auto-seed in seedAndLoad below mistakenly used 2025 dates,
-// which would never show up against the actual calendar).
-function loadSampleSeedData(){
-  var ref=daysRef();
-  if(!ref){showToast('Not signed in');return;}
-  if(!confirm('This will overwrite any existing entries for 27, 28 and 29 June 2026 with the sample data. Continue?')) return;
-  var seed={
-    '2026-06-27':{training:{status:'done',kcal:520,hr:'135 bpm',duration:'60 min',description:'Treadmill walk, 5 km/h, 8% incline'},food:{kcal:1050,water:4,caffeine:450,protein:'Low-moderate',meals:[{name:'Meals',kcal:910,items:[{n:'Paneer biryani half plate',k:425,p:18,c:58,fat:14},{n:'Rasam rice 2 spoons',k:60,p:2,c:12,fat:1},{n:'Curd rice 4 spoons',k:80,p:3,c:14,fat:2},{n:'Biscuits x2',k:70,p:1,c:11,fat:3},{n:'5 small rava dosa',k:275,p:6,c:42,fat:9}]},{name:'Drinks',kcal:140,items:[{n:'3 coffee with milk',k:90,p:4,c:9,fat:4},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]},weight:76.0},
-    '2026-06-28':{training:{status:'skip',kcal:null,hr:null,duration:null,description:'Strength A — Lower + Glutes (skipped)'},food:{kcal:1180,water:3,caffeine:350,protein:'Low',meals:[{name:'Lunch',kcal:475,items:[{n:'Hyderabadi veg biryani half',k:375,p:8,c:62,fat:11},{n:'Curd rice',k:100,p:4,c:18,fat:2}]},{name:'Dinner',kcal:595,items:[{n:'Benne masala dosa half',k:210,p:4,c:32,fat:8},{n:'Podi dosa half',k:160,p:3,c:24,fat:6},{n:'Dahi puri chaat',k:90,p:3,c:14,fat:3},{n:'Coconut poli',k:135,p:2,c:22,fat:5}]},{name:'Drinks',kcal:110,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]}},
-    '2026-06-29':{training:{status:'skip',kcal:null,hr:null,duration:null,description:'Treadmill walk (skipped)'},food:{kcal:2050,water:2,caffeine:200,protein:'High',meals:[{name:'Lunch',kcal:880,items:[{n:'400g rice',k:520,p:10,c:114,fat:1},{n:'Sambar',k:80,p:4,c:12,fat:2},{n:'Mor kuzhambu',k:60,p:2,c:8,fat:2},{n:'Kootu',k:100,p:5,c:14,fat:3},{n:'Cluster beans',k:50,p:2,c:8,fat:1},{n:'100g grapes',k:70,p:1,c:17,fat:0}]},{name:'Dinner',kcal:1070,items:[{n:'1.5 boiled eggs',k:110,p:9,c:1,fat:8},{n:'Andhra chicken 65 half',k:280,p:22,c:12,fat:16},{n:'Guntur prawn quarter',k:150,p:18,c:6,fat:7},{n:'Chicken lollipop x2',k:180,p:16,c:8,fat:10},{n:'Andhra 555 quarter',k:160,p:14,c:6,fat:9},{n:'Mountain Dew 200ml',k:90,p:0,c:23,fat:0},{n:'Chicken biryani quarter plate',k:400,p:18,c:52,fat:14}]},{name:'Drinks',kcal:100,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'1 tea with milk',k:40,p:2,c:5,fat:2}]}]},weight:77.2}
-  };
-  var keys=Object.keys(seed),i=0;
-  function next(){
-    if(i>=keys.length){
-      showToast('Sample data loaded');
-      goScreen('s-cal');
-      loadAll();
-      return;
-    }
-    var k=keys[i++];
-    AD[k]=seed[k];
-    ref.doc(k).set(seed[k],{merge:true}).then(next).catch(function(e){console.error(e);next();});
-  }
-  next();
-}
-
-// Loads this user's existing days and opens today's view. The sample data
-// for 27-29 June is no longer auto-injected here — use loadSampleSeedData()
-// (wired to the Settings screen) if you want to pull it in deliberately.
+// Loads this user's existing days and opens today's view.
 function seedAndLoad(){
   var ref=daysRef();
   if(!ref)return;
