@@ -52,7 +52,7 @@ input,select,button,textarea{font-family:inherit}
 .topbar-day-nav .topbar-back{width:32px;height:32px;font-size:16px}
 .topbar-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
 .topbar-action{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;padding:8px 6px;display:flex;align-items:center}
-.sbody{flex:1;overflow-y:auto;padding:14px 14px 80px}
+.sbody{flex:1;overflow-y:auto;padding:18px 14px 80px}
 .sbody.center{display:flex;flex-direction:column;align-items:stretch}
 .cal-card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--bd)}
@@ -69,8 +69,9 @@ input,select,button,textarea{font-family:inherit}
 .cnum{font-size:13px;font-weight:500;line-height:1}
 .cdots{display:flex;gap:2px;margin-top:3px;min-height:5px}
 .cdot{width:4px;height:4px;border-radius:50%}
-.card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:10px}
-.card-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:0.5px solid var(--bd);background:var(--s2)}
+.card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:0.5px solid var(--bd);background:var(--s2)}
+.card-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
 .card-title{font-size:12px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em}
 .card-action{font-size:12px;font-weight:600;color:var(--bl);background:none;border:none;cursor:pointer}
 .card-body{padding:12px 14px}
@@ -453,6 +454,14 @@ function getPlan(dk){
 function E(tag,cls){var e=document.createElement(tag);if(cls)e.className=cls;return e;}
 function D(cls){return E('div',cls);}
 function T(tag,cls,txt){var e=E(tag,cls);e.textContent=txt;return e;}
+function dottedTitle(label,color){
+  var wrap=D('card-title');
+  wrap.style.display='flex';wrap.style.alignItems='center';
+  var dot=D('card-dot');dot.style.background=color;
+  var txt=E('span');txt.textContent=label;
+  ap(wrap,dot,txt);
+  return wrap;
+}
 function ap(p){for(var i=1;i<arguments.length;i++)if(arguments[i])p.appendChild(arguments[i]);return p;}
 function Btn(cls,txt,fn){var b=E('button',cls);b.textContent=txt;b.addEventListener('click',fn);return b;}
 function Inp(id,type,ph,val){var i=E('input');i.id=id;i.type=type||'text';if(ph)i.placeholder=ph;if(val!==undefined&&val!==null)i.value=String(val);return i;}
@@ -684,9 +693,8 @@ function renderDayView(){
   body.innerHTML='';
 
   var tc=D('card');
-  tc.style.borderTop='3px solid var(--accent)';
   var th=D('card-hdr');
-  th.appendChild(T('div','card-title','Training'));
+  th.appendChild(dottedTitle('Training','var(--accent)'));
   var tBtn=Btn('card-action',isFutureDate(sd)?'Preview':(d.training&&d.training.status&&d.training.status!=='plan'?'Edit':'Log'),function(){renderTrainingForm();goScreen('s-training');});
   th.appendChild(tBtn);tc.appendChild(th);
   var tb=D('card-body');
@@ -717,9 +725,8 @@ function renderDayView(){
   tc.appendChild(tb);body.appendChild(tc);
 
   var fc=D('card');
-  fc.style.borderTop='3px solid var(--food)';
   var fh=D('card-hdr');
-  fh.appendChild(T('div','card-title','Food'));
+  fh.appendChild(dottedTitle('Food','var(--food)'));
   var fBtn=Btn('card-action',isFutureDate(sd)?'Locked':'Log / Edit',function(){renderFoodForm();goScreen('s-food');});
   fh.appendChild(fBtn);fc.appendChild(fh);
   var fb=D('card-body');
@@ -775,9 +782,8 @@ function renderDayView(){
   fc.appendChild(fb);body.appendChild(fc);
 
   var wc=D('card');
-  wc.style.borderTop='3px solid var(--weight)';
   var wh=D('card-hdr');
-  wh.appendChild(T('div','card-title','Weight'));
+  wh.appendChild(dottedTitle('Weight','var(--weight)'));
   var wBtn=Btn('card-action',isFutureDate(sd)?'Locked':'Log',function(){renderWeightForm();goScreen('s-weight');});
   wh.appendChild(wBtn);wc.appendChild(wh);
   var wb=D('card-body');
