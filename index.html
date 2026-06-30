@@ -226,6 +226,7 @@ input,select,textarea{font-size:16px!important}
 
 <div class="screen" id="s-cal">
   <div class="topbar">
+    <button class="topbar-back" id="menu-btn" title="Menu">&#9776;</button>
     <div class="topbar-title">My Dashboard</div>
     <button class="topbar-action" onclick="goInsights()">Insights</button>
     <button class="topbar-action" style="margin-left:8px;opacity:.6" onclick="showSettings()">&#9881;</button>
@@ -300,6 +301,14 @@ input,select,textarea{font-size:16px!important}
     <div class="topbar-title">Insights</div>
   </div>
   <div class="sbody" id="insights-body"></div>
+</div>
+
+<div class="screen" id="s-myplan">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
+    <div class="topbar-title">My plan</div>
+  </div>
+  <div class="sbody" id="myplan-body"></div>
 </div>
 
 <div class="toast" id="tst"></div>
@@ -409,6 +418,69 @@ function goBack(){
   history.back();
 }
 function goInsights(){renderInsights();goScreen('s-insights');}
+function goMyPlan(){renderMyPlan();goScreen('s-myplan');}
+
+// Read-only view of the original 6-month phased plan. This is informational
+// only — it never feeds into the generic training log, by design. It shows
+// what's suggested for the currently selected day (sd), plus a quick way to
+// jump to today's suggestion.
+function renderMyPlan(){
+  var body=document.getElementById('myplan-body');
+  body.innerHTML='';
+
+  var jumpRow=D('');jumpRow.style.cssText='margin-bottom:14px';
+  jumpRow.appendChild(Btn('btn-out','Jump to today\'s suggestion',function(){
+    sd=todayKey();
+    renderMyPlan();
+  }));
+  body.appendChild(jumpRow);
+
+  var plan=getPlan(sd);
+  var dateObj=new Date(sd+'T12:00:00');
+  var dlabel=DS[dateObj.getDay()]+', '+dateObj.getDate()+' '+MS[dateObj.getMonth()]+' '+dateObj.getFullYear();
+
+  var card=D('card');
+  var hdr=D('card-hdr');
+  hdr.appendChild(T('div','card-title',dlabel + (sd===todayKey()?' (today)':'')));
+  card.appendChild(hdr);
+  var cb=D('card-body');
+
+  if(!plan){
+    cb.appendChild(T('div','text-mu','No suggestion available before the plan\'s start date.'));
+  } else {
+    var nameRow=D('row-flex mb-8');
+    nameRow.appendChild(T('div','text-bold',plan.n));
+    nameRow.appendChild(T('div','badge b-plan',plan.ph));
+    cb.appendChild(nameRow);
+    if(plan.ex&&plan.ex.length){
+      var el2=D('ex-list');
+      plan.ex.forEach(function(e){
+        var r=D('ex-row');ap(r,T('span','ex-n',e.n),T('span','ex-s',e.s));el2.appendChild(r);
+      });
+      cb.appendChild(el2);
+    }
+  }
+  card.appendChild(cb);
+  body.appendChild(card);
+
+  var navRow=D('');navRow.style.cssText='display:flex;gap:8px;margin-top:10px';
+  navRow.appendChild(Btn('btn-out','Previous day',function(){
+    var d=new Date(sd+'T12:00:00');d.setDate(d.getDate()-1);
+    sd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    renderMyPlan();
+  }));
+  navRow.appendChild(Btn('btn-out','Next day',function(){
+    var d=new Date(sd+'T12:00:00');d.setDate(d.getDate()+1);
+    sd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    renderMyPlan();
+  }));
+  body.appendChild(navRow);
+
+  var note=D('');note.style.cssText='font-size:11px;color:var(--mu);margin-top:14px;line-height:1.5';
+  note.textContent='This is your personal reference plan — it doesn\'t auto-fill the training log. Log your actual workout from the day view as usual.';
+  body.appendChild(note);
+}
+
 
 window.addEventListener('popstate', function(e){
   var id = (e.state && e.state.screen) ? e.state.screen : 's-cal';
@@ -481,7 +553,6 @@ function renderCal(){
 
 function renderDayView(){
   var d=AD[sd]||{};
-  var plan=getPlan(sd);
   var dateObj=new Date(sd+'T12:00:00');
   var dlabel=DS[dateObj.getDay()]+', '+dateObj.getDate()+' '+MS[dateObj.getMonth()]+' '+dateObj.getFullYear();
   document.getElementById('day-title').textContent=dlabel;
@@ -503,29 +574,29 @@ function renderDayView(){
   var tBtn=Btn('card-action',isFutureDate(sd)?'Preview':(d.training&&d.training.status&&d.training.status!=='plan'?'Edit':'Log'),function(){renderTrainingForm();goScreen('s-training');});
   th.appendChild(tBtn);tc.appendChild(th);
   var tb=D('card-body');
-  if(plan){
+  if(d.training&&d.training.status&&d.training.status!=='plan'){
+    var st=d.training.status;
+    var stMap={done:'b-done',skip:'b-skip',rest:'b-rest'};
+    var stLbl={done:'Completed',skip:'Skipped',rest:'Rest day'};
     var tnr=D('row-flex mb-8');
-    tnr.appendChild(T('div','text-bold',plan.n));
-    var st=d.training&&d.training.status?d.training.status:'plan';
-    var stMap={done:'b-done',skip:'b-skip',rest:'b-rest',plan:'b-plan'};
-    var stLbl={done:'Completed',skip:'Skipped',rest:'Rest day',plan:'Planned'};
-    tnr.appendChild(T('div','badge '+(stMap[st]||'b-plan'),stLbl[st]||'Planned'));
+    tnr.appendChild(T('div','text-bold',stLbl[st]||'Logged'));
+    tnr.appendChild(T('div','badge '+(stMap[st]||'b-plan'),stLbl[st]||'Logged'));
     tb.appendChild(tnr);
-    if(st==='done'&&d.training&&(d.training.kcal||d.training.hr||d.training.effort)){
+    if(st==='done'&&(d.training.kcal||d.training.hr||d.training.duration)){
       var sg=D('stat-grid');
       function sv(l,v){var s=D('stat');ap(s,T('div','stat-v',String(v||'--')),T('div','stat-l',l));return s;}
-      ap(sg,sv('Kcal burned',d.training.kcal||'--'),sv('Heart rate',d.training.hr||'--'),sv('Effort',d.training.effort||'--'));
+      ap(sg,sv('Kcal burned',d.training.kcal||'--'),sv('Heart rate',d.training.hr||'--'),sv('Duration',d.training.duration||'--'));
       tb.appendChild(sg);
     }
-    if(plan.ex&&plan.ex.length&&st!=='rest'){
-      var el2=D('');el2.style.marginTop='8px';
-      plan.ex.forEach(function(e){
-        var r=D('ex-row');ap(r,T('span','ex-n',e.n),T('span','ex-s',e.s));el2.appendChild(r);
-      });
-      tb.appendChild(el2);
+    if(st==='done'&&d.training.description){
+      var descBox=D('');descBox.style.cssText='margin-top:8px;font-size:12px;color:var(--tx);line-height:1.5;white-space:pre-wrap';
+      descBox.textContent=d.training.description;
+      tb.appendChild(descBox);
     }
+  } else if(isFutureDate(sd)){
+    tb.appendChild(T('div','text-mu','Nothing logged yet — this date is still upcoming.'));
   } else {
-    tb.appendChild(T('div','text-mu','No workout planned for this date.'));
+    tb.appendChild(T('div','text-mu','No training logged for this day yet.'));
   }
   tc.appendChild(tb);body.appendChild(tc);
 
@@ -621,72 +692,74 @@ function autoFlags(f,tk){
 
 function renderTrainingForm(){
   var d=AD[sd]||{};
-  var plan=getPlan(sd);
   var body=document.getElementById('training-body');
   body.innerHTML='';
   if(isFutureDate(sd)){
-    body.appendChild(T('div','empty','This date hasn\'t happened yet — you can preview the planned workout from the day view, but logging starts once the date arrives.'));
+    body.appendChild(T('div','empty','This date hasn\'t happened yet — logging starts once the date arrives.'));
     return;
   }
-  if(!plan){body.appendChild(T('div','empty','No workout planned for this date.'));return;}
-  var cs=(d.training&&d.training.status)?d.training.status:(plan.t==='rest'?'rest':'plan');
+  var cs=(d.training&&d.training.status)?d.training.status:'plan';
   tStatus=cs;
-
-  var wcard=D('card');
-  var wh=D('card-hdr');wh.appendChild(T('div','card-title',plan.ph));wcard.appendChild(wh);
-  var wb=D('card-body');
-  wb.appendChild(T('div','',plan.n));wb.style.fontWeight='600';
-  if(plan.ex&&plan.ex.length){
-    plan.ex.forEach(function(e){
-      var r=D('ex-row');ap(r,T('span','ex-n',e.n),T('span','ex-s',e.s));wb.appendChild(r);
-    });
-  }
-  wcard.appendChild(wb);body.appendChild(wcard);
 
   body.appendChild(T('div','slbl','How did it go?'));
   var stRow=D('st-row');
-  var watchSlot=D('');
+  var detailSlot=D('');
   function mkStBtn(lbl,val){
     var b=Btn('stb',lbl,function(){
       tStatus=val;
       stRow.querySelectorAll('.stb').forEach(function(sb){sb.className='stb';});
       b.classList.add('s-'+val);
-      watchSlot.innerHTML='';
-      if(val==='done'){watchSlot.appendChild(buildWG(d));}
+      detailSlot.innerHTML='';
+      if(val==='done'){detailSlot.appendChild(buildWG(d));}
     });
     if(cs===val)b.classList.add('s-'+val);
     return b;
   }
   ap(stRow,mkStBtn('Completed','done'),mkStBtn('Skipped','skip'),mkStBtn('Rest day','rest'));
   body.appendChild(stRow);
-  if(cs==='done'){watchSlot.appendChild(buildWG(d));}
-  body.appendChild(watchSlot);
+  if(cs==='done'){detailSlot.appendChild(buildWG(d));}
+  body.appendChild(detailSlot);
+
   body.appendChild(Btn('btn btn-gap','Save training',function(){
     var kc=document.getElementById('w-kc');
     var hr=document.getElementById('w-hr');
-    var ef=document.getElementById('w-ef');
-    saveDay(sd,{training:{name:plan.n,phase:plan.ph,status:tStatus,exercises:plan.ex,
+    var tm=document.getElementById('w-time');
+    var ds=document.getElementById('w-desc');
+    saveDay(sd,{training:{
+      status:tStatus,
+      description:ds?ds.value.trim():'',
       kcal:(tStatus==='done'&&kc)?(parseInt(kc.value)||null):null,
       hr:(tStatus==='done'&&hr)?(hr.value||null):null,
-      effort:(tStatus==='done'&&ef)?(ef.value||null):null
+      duration:(tStatus==='done'&&tm)?(tm.value||null):null
     }},function(){goBack('s-day');});
   }));
 }
 
 function buildWG(d){
   var t=(d&&d.training)||{};
-  var wg=D('');wg.appendChild(T('div','slbl','Apple Watch stats'));
+  var wg=D('');wg.appendChild(T('div','slbl','Workout details'));
   var grid=D('wgrid');
   function wf(lbl,id,type,ph,val){
     var f=D('wf');var l=E('label');l.textContent=lbl;
     var i=Inp(id,type,ph,val);ap(f,l,i);return f;
   }
-  var efDiv=D('wf');var efLbl=E('label');efLbl.textContent='Effort';
-  var efSel=E('select');efSel.id='w-ef';efSel.style.cssText='width:100%;padding:9px 10px;border:0.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);outline:none';
-  ['','Easy','Moderate','Hard','Very hard'].forEach(function(o){var opt=E('option');opt.value=o;opt.textContent=o||'--';if(t.effort===o)opt.selected=true;efSel.appendChild(opt);});
-  ap(efDiv,efLbl,efSel);
-  ap(grid,wf('Kcal burned','w-kc','number','520',t.kcal),wf('Avg HR','w-hr','text','135 bpm',t.hr),efDiv);
-  wg.appendChild(grid);return wg;
+  ap(grid,
+    wf('Kcal burned','w-kc','number','520',t.kcal),
+    wf('Avg HR','w-hr','text','135 bpm',t.hr),
+    wf('Duration','w-time','text','45 min',t.duration)
+  );
+  wg.appendChild(grid);
+
+  var descLbl=D('');descLbl.appendChild(T('div','slbl','What did you do? (optional)'));
+  wg.appendChild(descLbl);
+  var descIn=E('textarea');
+  descIn.id='w-desc';
+  descIn.placeholder='e.g. Upper body strength — bench press, rows, shoulder press, 4 sets each';
+  descIn.value=t.description||'';
+  descIn.style.cssText='width:100%;min-height:70px;padding:9px 10px;border:0.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);outline:none;resize:vertical;font-family:inherit';
+  wg.appendChild(descIn);
+
+  return wg;
 }
 
 function renderFoodForm(){
@@ -1273,6 +1346,7 @@ document.getElementById('py').addEventListener('click',function(){cy--;renderCal
 document.getElementById('pm').addEventListener('click',function(){cm--;if(cm<0){cm=11;cy--;}renderCal();});
 document.getElementById('nm').addEventListener('click',function(){cm++;if(cm>11){cm=0;cy++;}renderCal();});
 document.getElementById('ny').addEventListener('click',function(){cy++;renderCal();});
+document.getElementById('menu-btn').addEventListener('click',goMyPlan);
 
 var anthropicKey = null;
 
@@ -1466,9 +1540,9 @@ function loadSampleSeedData(){
   if(!ref){showToast('Not signed in');return;}
   if(!confirm('This will overwrite any existing entries for 27, 28 and 29 June 2026 with the sample data. Continue?')) return;
   var seed={
-    '2026-06-27':{training:{name:'Treadmill Walk',phase:'Phase 1 Wk 1-4',status:'done',kcal:520,hr:'135 bpm',effort:'Moderate',exercises:[]},food:{kcal:1050,water:4,caffeine:450,protein:'Low-moderate',meals:[{name:'Meals',kcal:910,items:[{n:'Paneer biryani half plate',k:425,p:18,c:58,fat:14},{n:'Rasam rice 2 spoons',k:60,p:2,c:12,fat:1},{n:'Curd rice 4 spoons',k:80,p:3,c:14,fat:2},{n:'Biscuits x2',k:70,p:1,c:11,fat:3},{n:'5 small rava dosa',k:275,p:6,c:42,fat:9}]},{name:'Drinks',kcal:140,items:[{n:'3 coffee with milk',k:90,p:4,c:9,fat:4},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]},weight:76.0},
-    '2026-06-28':{training:{name:'Strength A',phase:'Phase 1 Wk 1-4',status:'skip',kcal:null,hr:null,effort:null,exercises:[]},food:{kcal:1180,water:3,caffeine:350,protein:'Low',meals:[{name:'Lunch',kcal:475,items:[{n:'Hyderabadi veg biryani half',k:375,p:8,c:62,fat:11},{n:'Curd rice',k:100,p:4,c:18,fat:2}]},{name:'Dinner',kcal:595,items:[{n:'Benne masala dosa half',k:210,p:4,c:32,fat:8},{n:'Podi dosa half',k:160,p:3,c:24,fat:6},{n:'Dahi puri chaat',k:90,p:3,c:14,fat:3},{n:'Coconut poli',k:135,p:2,c:22,fat:5}]},{name:'Drinks',kcal:110,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]}},
-    '2026-06-29':{training:{name:'Treadmill Walk',phase:'Phase 1 Wk 1-4',status:'skip',kcal:null,hr:null,effort:null,exercises:[]},food:{kcal:2050,water:2,caffeine:200,protein:'High',meals:[{name:'Lunch',kcal:880,items:[{n:'400g rice',k:520,p:10,c:114,fat:1},{n:'Sambar',k:80,p:4,c:12,fat:2},{n:'Mor kuzhambu',k:60,p:2,c:8,fat:2},{n:'Kootu',k:100,p:5,c:14,fat:3},{n:'Cluster beans',k:50,p:2,c:8,fat:1},{n:'100g grapes',k:70,p:1,c:17,fat:0}]},{name:'Dinner',kcal:1070,items:[{n:'1.5 boiled eggs',k:110,p:9,c:1,fat:8},{n:'Andhra chicken 65 half',k:280,p:22,c:12,fat:16},{n:'Guntur prawn quarter',k:150,p:18,c:6,fat:7},{n:'Chicken lollipop x2',k:180,p:16,c:8,fat:10},{n:'Andhra 555 quarter',k:160,p:14,c:6,fat:9},{n:'Mountain Dew 200ml',k:90,p:0,c:23,fat:0},{n:'Chicken biryani quarter plate',k:400,p:18,c:52,fat:14}]},{name:'Drinks',kcal:100,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'1 tea with milk',k:40,p:2,c:5,fat:2}]}]},weight:77.2}
+    '2026-06-27':{training:{status:'done',kcal:520,hr:'135 bpm',duration:'60 min',description:'Treadmill walk, 5 km/h, 8% incline'},food:{kcal:1050,water:4,caffeine:450,protein:'Low-moderate',meals:[{name:'Meals',kcal:910,items:[{n:'Paneer biryani half plate',k:425,p:18,c:58,fat:14},{n:'Rasam rice 2 spoons',k:60,p:2,c:12,fat:1},{n:'Curd rice 4 spoons',k:80,p:3,c:14,fat:2},{n:'Biscuits x2',k:70,p:1,c:11,fat:3},{n:'5 small rava dosa',k:275,p:6,c:42,fat:9}]},{name:'Drinks',kcal:140,items:[{n:'3 coffee with milk',k:90,p:4,c:9,fat:4},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]},weight:76.0},
+    '2026-06-28':{training:{status:'skip',kcal:null,hr:null,duration:null,description:'Strength A — Lower + Glutes (skipped)'},food:{kcal:1180,water:3,caffeine:350,protein:'Low',meals:[{name:'Lunch',kcal:475,items:[{n:'Hyderabadi veg biryani half',k:375,p:8,c:62,fat:11},{n:'Curd rice',k:100,p:4,c:18,fat:2}]},{name:'Dinner',kcal:595,items:[{n:'Benne masala dosa half',k:210,p:4,c:32,fat:8},{n:'Podi dosa half',k:160,p:3,c:24,fat:6},{n:'Dahi puri chaat',k:90,p:3,c:14,fat:3},{n:'Coconut poli',k:135,p:2,c:22,fat:5}]},{name:'Drinks',kcal:110,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'2 tea with milk',k:50,p:2,c:6,fat:2}]}]}},
+    '2026-06-29':{training:{status:'skip',kcal:null,hr:null,duration:null,description:'Treadmill walk (skipped)'},food:{kcal:2050,water:2,caffeine:200,protein:'High',meals:[{name:'Lunch',kcal:880,items:[{n:'400g rice',k:520,p:10,c:114,fat:1},{n:'Sambar',k:80,p:4,c:12,fat:2},{n:'Mor kuzhambu',k:60,p:2,c:8,fat:2},{n:'Kootu',k:100,p:5,c:14,fat:3},{n:'Cluster beans',k:50,p:2,c:8,fat:1},{n:'100g grapes',k:70,p:1,c:17,fat:0}]},{name:'Dinner',kcal:1070,items:[{n:'1.5 boiled eggs',k:110,p:9,c:1,fat:8},{n:'Andhra chicken 65 half',k:280,p:22,c:12,fat:16},{n:'Guntur prawn quarter',k:150,p:18,c:6,fat:7},{n:'Chicken lollipop x2',k:180,p:16,c:8,fat:10},{n:'Andhra 555 quarter',k:160,p:14,c:6,fat:9},{n:'Mountain Dew 200ml',k:90,p:0,c:23,fat:0},{n:'Chicken biryani quarter plate',k:400,p:18,c:52,fat:14}]},{name:'Drinks',kcal:100,items:[{n:'2 coffee with milk',k:60,p:3,c:6,fat:3},{n:'1 tea with milk',k:40,p:2,c:5,fat:2}]}]},weight:77.2}
   };
   var keys=Object.keys(seed),i=0;
   function next(){
