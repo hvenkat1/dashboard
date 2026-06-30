@@ -48,7 +48,7 @@ input,select,button,textarea{font-family:inherit}
 .topbar-day{padding:12px 14px}
 .topbar-day-center{flex:1;min-width:0}
 .topbar-day-center .topbar-title{font-size:15px;line-height:1.25}
-.topbar-day-nav{display:flex;gap:6px;flex-shrink:0}
+.topbar-day-nav{display:flex;gap:8px;flex-shrink:0}
 .topbar-day-nav .topbar-back{width:32px;height:32px;font-size:16px}
 .topbar-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
 .topbar-action{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;padding:8px 6px;display:flex;align-items:center}
@@ -60,7 +60,7 @@ input,select,button,textarea{font-family:inherit}
 .cal-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--bd)}
 .cal-lbl{font-size:15px;font-weight:700}
-.cal-navs{display:flex;gap:5px}
+.cal-navs{display:flex;gap:8px}
 .cnav{background:var(--s2);border:0.5px solid var(--bd);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:15px;color:var(--tx);display:inline-flex;align-items:center;justify-content:center}
 .cnav:active{background:var(--bd)}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);padding:8px 10px 4px}
@@ -87,6 +87,8 @@ input,select,button,textarea{font-family:inherit}
 .menu-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:0.5px solid var(--bd);background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left;font-family:inherit}
 .menu-row:last-child{border-bottom:none}
 .menu-row:active{background:var(--s2)}
+.menu-row-logout .menu-label{color:var(--re)}
+.menu-row-logout .menu-icon{color:var(--re)}
 .menu-icon{width:24px;height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--mu)}
 .menu-label{font-size:14px;font-weight:500;color:var(--tx);flex:1}
 .menu-chevron{font-size:16px;color:var(--mu)}
@@ -294,7 +296,8 @@ input,select,textarea{font-size:16px!important}
     <div id="login-form-wrap" style="display:none;width:100%;max-width:360px">
       <div style="color:#fff;font-size:24px;font-weight:700;margin-bottom:4px;text-align:center">My Dashboard</div>
       <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px;text-align:center">Training + nutrition tracker</div>
-      <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%">
+      <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%;position:relative">
+        <button id="login-box-back" onclick="goScreen('s-cal')" style="display:none;position:absolute;top:14px;left:14px;background:var(--s2);border:none;color:var(--tx);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;align-items:center;justify-content:center">&#8249;</button>
         <div id="login-content"></div>
       </div>
     </div>
@@ -309,8 +312,8 @@ input,select,textarea{font-size:16px!important}
       <div class="topbar-title">Overview</div>
     </div>
     <div class="topbar-actions">
-      <button class="topbar-action" onclick="goInsights()">Insights</button>
-      <button class="topbar-action" onclick="showSettings()" aria-label="Settings">&#9881;</button>
+      <button class="topbar-back" id="cal-insights-btn" title="Insights" aria-label="Insights"></button>
+      <button class="topbar-back" id="cal-logout-btn" title="Sign out" aria-label="Sign out"></button>
     </div>
   </div>
   <div class="sbody">
@@ -539,42 +542,43 @@ function goMyPlan(){renderMyPlan();goScreen('s-myplan');}
 function goProfile(){renderProfile();goScreen('s-profile');}
 function goMenu(){renderMenu();goScreen('s-menu');}
 
+function svgIcon(paths,size){
+  var ns='http://www.w3.org/2000/svg';
+  var svg=document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox','0 0 24 24');
+  svg.setAttribute('width',size||18);
+  svg.setAttribute('height',size||18);
+  svg.setAttribute('fill','none');
+  svg.setAttribute('stroke','currentColor');
+  svg.setAttribute('stroke-width','2');
+  svg.setAttribute('stroke-linecap','round');
+  svg.setAttribute('stroke-linejoin','round');
+  paths.forEach(function(d){
+    var p=document.createElementNS(ns,'path');
+    p.setAttribute('d',d);
+    svg.appendChild(p);
+  });
+  return svg;
+}
+
+var MENU_ICONS={
+  home:['M3 11l9-8 9 8','M5 10v10h14V10'],
+  insights:['M3 3v18h18','M7 16l4-6 4 3 5-8'],
+  plan:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
+  profile:['M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z','M4.5 21a7.5 7.5 0 0 1 15 0'],
+  settings:['M12 1v4','M12 19v4','M4.22 4.22l2.83 2.83','M16.95 16.95l2.83 2.83','M1 12h4','M19 12h4','M4.22 19.78l2.83-2.83','M16.95 7.05l2.83-2.83','M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
+  logout:['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4','M16 17l5-5-5-5','M21 12H9']
+};
+
 function renderMenu(){
   var body=document.getElementById('menu-body');
   body.innerHTML='';
   var list=D('menu-list');
 
-  function svgIcon(paths){
-    var ns='http://www.w3.org/2000/svg';
-    var svg=document.createElementNS(ns,'svg');
-    svg.setAttribute('viewBox','0 0 24 24');
-    svg.setAttribute('width','18');
-    svg.setAttribute('height','18');
-    svg.setAttribute('fill','none');
-    svg.setAttribute('stroke','currentColor');
-    svg.setAttribute('stroke-width','2');
-    svg.setAttribute('stroke-linecap','round');
-    svg.setAttribute('stroke-linejoin','round');
-    paths.forEach(function(d){
-      var p=document.createElementNS(ns,'path');
-      p.setAttribute('d',d);
-      svg.appendChild(p);
-    });
-    return svg;
-  }
-
-  var ICONS={
-    calendar:['M3 4h18v18H3z','M16 2v4','M8 2v4','M3 10h18'],
-    insights:['M3 3v18h18','M7 16l4-6 4 3 5-8'],
-    plan:['M9 11l3 3L22 4','M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
-    profile:['M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z','M4.5 21a7.5 7.5 0 0 1 15 0'],
-    settings:['M12 1v4','M12 19v4','M4.22 4.22l2.83 2.83','M16.95 16.95l2.83 2.83','M1 12h4','M19 12h4','M4.22 19.78l2.83-2.83','M16.95 7.05l2.83-2.83','M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z']
-  };
-
   function row(iconKey,label,fn){
     var r=E('button','menu-row');
     var iconWrap=T('span','menu-icon','');
-    iconWrap.appendChild(svgIcon(ICONS[iconKey]));
+    iconWrap.appendChild(svgIcon(MENU_ICONS[iconKey]));
     r.appendChild(iconWrap);
     r.appendChild(T('span','menu-label',label));
     r.appendChild(T('span','menu-chevron',String.fromCharCode(8250)));
@@ -582,13 +586,29 @@ function renderMenu(){
     return r;
   }
 
-  list.appendChild(row('calendar','Calendar',function(){ goScreen('s-cal'); renderCal(); }));
+  list.appendChild(row('home','Home',function(){ goScreen('s-cal'); renderCal(); }));
   list.appendChild(row('profile','Profile',function(){ goProfile(); }));
-  list.appendChild(row('insights','Insights',function(){ goInsights(); }));
   list.appendChild(row('plan','Training plan',function(){ goMyPlan(); }));
-  list.appendChild(row('settings','Settings',function(){ showSettings(); }));
+  list.appendChild(row('settings','AI Settings',function(){ showSettings(); }));
 
   body.appendChild(list);
+
+  var logoutRow=E('button','menu-row menu-row-logout');
+  var logoutIcon=T('span','menu-icon','');
+  logoutIcon.appendChild(svgIcon(MENU_ICONS.logout));
+  logoutRow.appendChild(logoutIcon);
+  logoutRow.appendChild(T('span','menu-label','Sign out'));
+  logoutRow.addEventListener('click',function(){
+    auth.signOut().then(function(){
+      localStorage.removeItem('dash_apikey');
+      anthropicKey=null;AD={};
+      showLoginEntry();
+    });
+  });
+  var logoutWrap=D('menu-list');
+  logoutWrap.style.marginTop='14px';
+  logoutWrap.appendChild(logoutRow);
+  body.appendChild(logoutWrap);
 }
 
 
@@ -686,11 +706,65 @@ function renderProfile(){
   body.appendChild(T('div','loading','Loading profile...'));
   ref.get().then(function(doc){
     profileData=doc.exists?doc.data():{};
-    buildProfileForm();
+    buildProfileView();
   }).catch(function(){
     profileData={};
-    buildProfileForm();
+    buildProfileView();
   });
+}
+
+function profileHasAnyData(){
+  return !!(profileData.name||profileData.dob||profileData.gender||profileData.height||profileData.weight||profileData.targetWeight);
+}
+
+function buildProfileView(){
+  var body=document.getElementById('profile-body');
+  body.innerHTML='';
+
+  var initial=(profileData.name||(auth.currentUser&&auth.currentUser.email)||'?').trim().charAt(0).toUpperCase();
+  var avatar=D('profile-avatar');avatar.textContent=initial;
+  body.appendChild(avatar);
+
+  if(!profileHasAnyData()){
+    body.appendChild(T('div','empty','No profile details yet. Tap Edit to add your information.'));
+    body.appendChild(Btn('btn btn-gap','Edit profile',buildProfileForm));
+    return;
+  }
+
+  function viewRow(label,value){
+    var r=D('profile-field');
+    r.appendChild((function(){var l=E('label');l.textContent=label;return l;})());
+    var v=D('');v.style.cssText='font-size:14px;color:var(--tx);padding:2px 0';
+    v.textContent=(value===null||value===undefined||value==='')?'—':value;
+    r.appendChild(v);
+    return r;
+  }
+
+  var personal=D('profile-section');
+  personal.appendChild(T('div','profile-section-title','Personal'));
+  personal.appendChild(viewRow('Name',profileData.name));
+  var dobAgeRow=D('profile-row2');
+  var age=calcAge(profileData.dob);
+  ap(dobAgeRow,
+    viewRow('Date of birth',profileData.dob),
+    viewRow('Age',age!==null?(age+' years'):null)
+  );
+  personal.appendChild(dobAgeRow);
+  personal.appendChild(viewRow('Gender',profileData.gender));
+  body.appendChild(personal);
+
+  var health=D('profile-section');
+  health.appendChild(T('div','profile-section-title','Health metrics'));
+  var hRow=D('profile-row2');
+  ap(hRow,
+    viewRow('Height (cm)',profileData.height),
+    viewRow('Current weight (kg)',profileData.weight)
+  );
+  health.appendChild(hRow);
+  health.appendChild(viewRow('Target weight (kg)',profileData.targetWeight));
+  body.appendChild(health);
+
+  body.appendChild(Btn('btn btn-out btn-gap','Edit profile',buildProfileForm));
 }
 
 function buildProfileForm(){
@@ -759,7 +833,10 @@ function buildProfileForm(){
   health.appendChild(field('Target weight (kg)','pf-target','number',profileData.targetWeight||''));
   body.appendChild(health);
 
-  body.appendChild(Btn('btn btn-gap','Save profile',saveProfile));
+  var btnRow=D('');btnRow.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px';
+  btnRow.appendChild(Btn('btn btn-out','Cancel',buildProfileView));
+  btnRow.appendChild(Btn('btn','Save',saveProfile));
+  body.appendChild(btnRow);
 }
 
 function saveProfile(){
@@ -776,6 +853,7 @@ function saveProfile(){
   ref.set(data,{merge:true}).then(function(){
     profileData=data;
     showToast('Profile saved');
+    buildProfileView();
   }).catch(function(e){
     console.error(e);
     showToast('Save failed');
@@ -2000,6 +2078,16 @@ document.getElementById('pm').addEventListener('click',function(){cm--;if(cm<0){
 document.getElementById('nm').addEventListener('click',function(){cm++;if(cm>11){cm=0;cy++;}renderCal();});
 document.getElementById('ny').addEventListener('click',function(){cy++;renderCal();});
 document.getElementById('menu-btn').addEventListener('click',goMenu);
+document.getElementById('cal-insights-btn').appendChild(svgIcon(MENU_ICONS.insights,17));
+document.getElementById('cal-insights-btn').addEventListener('click',goInsights);
+document.getElementById('cal-logout-btn').appendChild(svgIcon(MENU_ICONS.logout,17));
+document.getElementById('cal-logout-btn').addEventListener('click',function(){
+  auth.signOut().then(function(){
+    localStorage.removeItem('dash_apikey');
+    anthropicKey=null;AD={};
+    showLoginEntry();
+  });
+});
 
 var anthropicKey = null;
 
@@ -2009,9 +2097,11 @@ function showSettings() {
   goScreen('s-login');
   revealLoginForm();
   loginContent.innerHTML = '';
+  var backBtn = document.getElementById('login-box-back');
+  if (backBtn) backBtn.style.display = 'flex';
   var user = auth.currentUser;
-  loginContent.appendChild(T('div', 'login-title', 'Settings'));
-  loginContent.appendChild(T('div', 'login-sub', (user ? user.email : '') + ' — update your Anthropic API key or sign out'));
+  loginContent.appendChild(T('div', 'login-title', 'AI Settings'));
+  loginContent.appendChild(T('div', 'login-sub', 'Your Anthropic API key powers AI food lookup' + (user ? (' for ' + user.email) : '') + '.'));
   var keyIn = E('input', 'login-input');
   keyIn.placeholder = 'Anthropic API key (sk-ant-...)';
   keyIn.type = 'password';
@@ -2026,15 +2116,6 @@ function showSettings() {
         showToast('API key saved');goScreen('s-cal');
       }).catch(function() { showToast('Saved locally'); goScreen('s-cal'); });
     } else { showToast('Saved'); goScreen('s-cal'); }
-  }));
-  loginContent.appendChild(Btn('btn btn-out', 'Back to dashboard', function() { goScreen('s-cal'); }));
-
-  loginContent.appendChild(Btn('btn btn-out', 'Sign out', function() {
-    auth.signOut().then(function() {
-      localStorage.removeItem('dash_apikey');
-      anthropicKey = null; AD = {};
-      showLoginEntry();
-    });
   }));
 }
 
@@ -2101,6 +2182,8 @@ function showLoginEntry() {
   revealLoginForm();
   var box = document.getElementById('login-content');
   box.innerHTML = '';
+  var backBtn = document.getElementById('login-box-back');
+  if (backBtn) backBtn.style.display = 'none';
   box.appendChild(T('div', 'login-title', 'Welcome back'));
   box.appendChild(T('div', 'login-sub', 'Sign in to continue'));
 
