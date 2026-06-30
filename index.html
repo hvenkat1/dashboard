@@ -63,11 +63,7 @@ input,select,button,textarea{font-family:inherit}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:4px 10px 12px}
 .cc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;border:1.5px solid transparent;transition:background .12s,border-color .12s;position:relative}
 .cc:active{background:var(--bd)}
-.cc.today .cnum{box-shadow:0 0 0 1.5px var(--accent-bd) inset;border-radius:50%}
-.cc.sel .cnum{background:var(--accent);color:#fff;border-radius:50%;box-shadow:none}
-.cc.sel.today .cnum{background:var(--accent-dark)}
-.cc.sel.today{border-color:var(--accent-dark)}
-.cc.sel .cnum{color:#fff;font-weight:700}
+.cc.today .cnum{background:var(--accent);color:#fff;font-weight:700;border-radius:50%}
 .cc.om .cnum{color:var(--fa)}
 .cnum{font-size:13px;font-weight:500;line-height:1;width:26px;height:26px;display:flex;align-items:center;justify-content:center}
 .cdots{display:flex;gap:2px;margin-top:3px;min-height:5px;justify-content:center}
@@ -411,6 +407,14 @@ input,select,textarea{font-size:16px!important}
     <div class="topbar-title">Profile</div>
   </div>
   <div class="sbody" id="profile-body"></div>
+</div>
+
+<div class="screen" id="s-ai-settings">
+  <div class="topbar">
+    <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
+    <div class="topbar-title">AI Settings</div>
+  </div>
+  <div class="sbody" id="ai-settings-body"></div>
 </div>
 
 <div class="toast" id="tst"></div>
@@ -909,7 +913,6 @@ function renderCal(){
     var dk=yr+'-'+pad(mo+1)+'-'+pad(day);
     var dd=AD[dk];
     var cc=D('cc');
-    if(dk===sd)cc.classList.add('sel');
     if(dk===today)cc.classList.add('today');
     if(!inM)cc.classList.add('om');
     cc.appendChild(T('div','cnum',String(day)));
@@ -2197,6 +2200,64 @@ function renderInsightsBody(){
   if(avgWater>0&&avgWater<3)tips.appendChild(T('div','ic-row','Average water only '+avgWater+'L. Try to hit 4L daily.'));
   if(foodDays<n*0.5)tips.appendChild(T('div','ic-row','Food logged on '+foodDays+' of '+n+' days — more consistent logging gives clearer insights.'));
   body.appendChild(tips);
+
+  // AI commentary — only attempted if a provider key is configured. Sits on
+  // top of everything computed above rather than replacing it; the
+  // rule-based stats and charts always work with no key, this is additive.
+  if(aiKeys[aiProvider]){
+    var aiCard=D('insight-card');
+    aiCard.id='ai-insight-card';
+    aiCard.appendChild(dottedTitle('AI take',aiProvider==='anthropic'?'#cc785c':aiProvider==='openai'?'#10a37f':'#4285f4'));
+    var aiBody=D('');aiBody.id='ai-insight-body';
+    var aiLoading=D('loading');
+    aiLoading.appendChild(D('spinner'));
+    aiLoading.appendChild(T('span','','Asking '+(aiProvider==='anthropic'?'Claude':aiProvider==='openai'?'OpenAI':'Gemini')+'...'));
+    aiBody.appendChild(aiLoading);
+    aiCard.appendChild(aiBody);
+    body.appendChild(aiCard);
+    fetchAiInsightCommentary(rangeDays,{n:n,workoutDays:workoutDays,avgKcal:avgKcal,avgWater:avgWater,weightChange:weightChange,foodDays:foodDays,rangeLbl:rangeLbl});
+  }
+}
+
+// Sends a compact statistical summary (not raw daily logs) to the
+// configured AI provider for a short, personalized take — kept separate
+// from the rule-based analysis above so the page is never blocked waiting
+// on a network call, and still fully useful with no key configured at all.
+function fetchAiInsightCommentary(rangeDays,stats){
+  var key=aiKeys[aiProvider];
+  var summary='Training+nutrition data for '+stats.rangeLbl+' ('+stats.n+' days): '
+    +stats.workoutDays+' workout days completed, '
+    +(stats.avgKcal?('avg '+stats.avgKcal+' kcal/day'):'calories not consistently logged')+', '
+    +(stats.avgWater?('avg '+stats.avgWater+'L water/day'):'water not consistently logged')+', '
+    +(stats.weightChange!==null?('weight change '+(stats.weightChange>0?'+':'')+stats.weightChange+'kg'):'not enough weight data')+', '
+    +'food logged on '+stats.foodDays+' of '+stats.n+' days.';
+  var prompt='You are a supportive fitness coach. Based on this summary, give exactly 2-3 short sentences of specific, actionable, encouraging commentary — no generic platitudes, reference the actual numbers given. Summary: '+summary;
+
+  var req=buildAiRequest(aiProvider,key,prompt);
+  var aiBody=document.getElementById('ai-insight-body');
+  if(!req||!aiBody)return;
+
+  fetch(req.url,{method:'POST',headers:req.headers,body:JSON.stringify(req.body)})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var text=extractAiText(aiProvider,data);
+      if(!aiBody)return; // user may have navigated away or switched range
+      if(!text){
+        aiBody.innerHTML='';
+        aiBody.appendChild(T('div','ic-row','Couldn\'t reach the AI provider right now — check your key in AI Settings.'));
+        return;
+      }
+      aiBody.innerHTML='';
+      var p=D('');p.style.cssText='font-size:13px;color:var(--tx);line-height:1.6';
+      p.textContent=text.trim();
+      aiBody.appendChild(p);
+    })
+    .catch(function(){
+      var b=document.getElementById('ai-insight-body');
+      if(!b)return;
+      b.innerHTML='';
+      b.appendChild(T('div','ic-row','Couldn\'t reach the AI provider right now — check your key in AI Settings.'));
+    });
 }
 
 // Returns the immediately preceding period of the same length as rangeDays,
@@ -2296,22 +2357,30 @@ var aiProvider = 'anthropic'; // 'anthropic' | 'openai' | 'gemini'
 var aiKeys = { anthropic: null, openai: null, gemini: null };
 
 function showSettings() {
-  var loginContent = document.getElementById('login-content');
-  if (!loginContent) return;
-  goScreen('s-login');
-  revealLoginForm();
-  loginContent.innerHTML = '';
-  var backBtn = document.getElementById('login-box-back');
-  if (backBtn) backBtn.style.display = 'flex';
-  var user = auth.currentUser;
-  loginContent.appendChild(T('div', 'login-title', 'AI Settings'));
-  loginContent.appendChild(T('div', 'login-sub', 'Used as a last-resort food lookup when a food isn\'t in the built-in list or Open Food Facts.' + (user ? (' Signed in as ' + user.email) : '')));
+  goScreen('s-ai-settings');
+  renderAiSettings();
+}
 
-  loginContent.appendChild((function(){var l=E('div');l.style.cssText='font-size:11px;font-weight:600;color:var(--mu);margin:14px 0 6px';l.textContent='AI provider';return l;})());
+function renderAiSettings() {
+  var body = document.getElementById('ai-settings-body');
+  body.innerHTML = '';
+  var user = auth.currentUser;
+
+  var card = D('profile-section');
+  card.appendChild(T('div', 'profile-section-title', 'AI provider'));
+  var hint = T('div', '', 'Used as a last-resort food lookup when a food isn\'t in the built-in list or Open Food Facts, and to add commentary to your Insights.' + (user ? (' Signed in as ' + user.email + '.') : ''));
+  hint.style.cssText = 'font-size:12px;color:var(--mu);line-height:1.5;margin-bottom:14px';
+  card.appendChild(hint);
+
   var providerRow = D('meal-type-row');
   var providers = [['anthropic','Claude'],['openai','OpenAI'],['gemini','Gemini']];
-  var keyIn = E('input', 'login-input');
+  var keyField = D('profile-field');
+  var keyLabel = E('label'); keyLabel.textContent = 'API key';
+  var keyIn = E('input');
   keyIn.type = 'password';
+  keyField.appendChild(keyLabel);
+  keyField.appendChild(keyIn);
+
   function refreshKeyField(){
     var labels = {anthropic:'sk-ant-...', openai:'sk-...', gemini:'AIza...'};
     keyIn.placeholder = providers.find(function(p){return p[0]===aiProvider;})[1] + ' API key (' + labels[aiProvider] + ')';
@@ -2326,22 +2395,51 @@ function showSettings() {
     });
     providerRow.appendChild(b);
   });
-  loginContent.appendChild(providerRow);
+  card.appendChild(providerRow);
   refreshKeyField();
-  loginContent.appendChild(keyIn);
+  card.appendChild(keyField);
+  body.appendChild(card);
 
-  loginContent.appendChild(Btn('btn btn-gap', 'Save AI settings', function() {
+  var statusBox = D('');
+  statusBox.id = 'ai-settings-status';
+  statusBox.style.cssText = 'display:none;margin-bottom:14px;padding:10px 12px;border-radius:9px;font-size:12px;font-weight:600;text-align:center;line-height:1.4';
+  body.appendChild(statusBox);
+
+  function showStatus(msg, isError){
+    statusBox.textContent = msg;
+    statusBox.style.display = 'block';
+    statusBox.style.background = isError ? 'var(--rbg)' : 'var(--gbg)';
+    statusBox.style.color = isError ? 'var(--re)' : 'var(--gr)';
+    statusBox.style.border = '0.5px solid ' + (isError ? 'var(--rbd)' : 'var(--gbd)');
+  }
+
+  var savedKeyOnEntry = aiKeys[aiProvider];
+  if (savedKeyOnEntry) {
+    showStatus((providers.find(function(p){return p[0]===aiProvider;})[1]) + ' key is currently saved and active.', false);
+  }
+
+  var saveBtn = Btn('btn btn-gap', 'Save AI settings', function() {
     var key = keyIn.value.trim();
+    saveBtn.textContent = 'Saving...';
     aiKeys[aiProvider] = key;
-    anthropicKey = aiKeys.anthropic; // keep legacy var in sync for anything still reading it
+    anthropicKey = aiKeys.anthropic;
     localStorage.setItem('dash_ai_provider', aiProvider);
     localStorage.setItem('dash_ai_keys', JSON.stringify(aiKeys));
+    var providerLabel = providers.find(function(p){return p[0]===aiProvider;})[1];
     if (user) {
       db.collection('users').doc(user.uid).set({ aiProvider: aiProvider, aiKeys: aiKeys }, {merge:true}).then(function() {
-        showToast('AI settings saved');goScreen('s-cal');
-      }).catch(function() { showToast('Saved locally'); goScreen('s-cal'); });
-    } else { showToast('Saved'); goScreen('s-cal'); }
-  }));
+        saveBtn.textContent = 'Save AI settings';
+        showStatus(key ? (providerLabel + ' key saved and active.') : (providerLabel + ' key removed.'), false);
+      }).catch(function() {
+        saveBtn.textContent = 'Save AI settings';
+        showStatus('Saved on this device only — sync to your account failed.', true);
+      });
+    } else {
+      saveBtn.textContent = 'Save AI settings';
+      showStatus('Saved on this device.', false);
+    }
+  });
+  body.appendChild(saveBtn);
 }
 
 // ── AUTH STATE ────────────────────────────────────────────────────────────
