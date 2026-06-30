@@ -1628,6 +1628,7 @@ function showSettings() {
   var loginContent = document.getElementById('login-content');
   if (!loginContent) return;
   goScreen('s-login');
+  revealLoginForm();
   loginContent.innerHTML = '';
   var user = auth.currentUser;
   loginContent.appendChild(T('div', 'login-title', 'Settings'));
