@@ -1649,6 +1649,14 @@ function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
     renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     return;
   }
+  // Share the global throttle with Insights so both don't hit rate limits
+  // simultaneously — if an Insights call just fired, wait before searching.
+  var now=Date.now();
+  if(now-lastAiCallTime<5000){
+    renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
+    return;
+  }
+  lastAiCallTime=now;
   var prompt='Estimate nutrition for this food/quantity: "'+query+'". Respond with ONLY a JSON object, no markdown, no explanation: {"name":"food name","kcal_per_100":number,"protein_per_100":number,"carbs_per_100":number,"fat_per_100":number,"kind":"g or ml"}. The numbers must be per 100g or 100ml as appropriate for the food type.';
 
   var req=buildAiRequest(aiProvider,key,prompt);
@@ -1701,7 +1709,7 @@ function buildAiRequest(provider,key,prompt){
   }
   if(provider==='gemini'){
     return {
-      url:'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(key),
+      url:'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+encodeURIComponent(key),
       headers:{'Content-Type':'application/json'},
       body:{contents:[{parts:[{text:prompt}]}]}
     };
