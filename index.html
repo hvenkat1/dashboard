@@ -2407,80 +2407,156 @@ function renderAiSettings() {
   body.innerHTML = '';
   var user = auth.currentUser;
 
-  var card = D('profile-section');
-  card.appendChild(T('div', 'profile-section-title', 'AI provider'));
-  var hint = T('div', '', 'Used as a last-resort food lookup when a food isn\'t in the built-in list or Open Food Facts, and to add commentary to your Insights.' + (user ? (' Signed in as ' + user.email + '.') : ''));
-  hint.style.cssText = 'font-size:12px;color:var(--mu);line-height:1.5;margin-bottom:14px';
-  card.appendChild(hint);
+  var providers = [
+    {id:'anthropic', label:'Claude', hint:'sk-ant-...', note:'Works directly in the browser.'},
+    {id:'openai',    label:'OpenAI', hint:'sk-...',     note:'Requires a backend proxy — not supported in this app.'},
+    {id:'gemini',    label:'Gemini', hint:'AIzaSy...',  note:'Works directly in the browser. Free tier: 60 req/min.'}
+  ];
 
-  var providerRow = D('meal-type-row');
-  var providers = [['anthropic','Claude'],['openai','OpenAI'],['gemini','Gemini']];
-  var keyField = D('profile-field');
-  var keyLabel = E('label'); keyLabel.textContent = 'API key';
-  var keyIn = E('input');
-  keyIn.type = 'password';
-  keyField.appendChild(keyLabel);
-  keyField.appendChild(keyIn);
+  var intro = T('div','','AI is used as a last-resort food lookup and to generate commentary in Insights.');
+  intro.style.cssText = 'font-size:12px;color:var(--mu);line-height:1.5;margin-bottom:14px';
+  body.appendChild(intro);
 
-  function refreshKeyField(){
-    var labels = {anthropic:'sk-ant-...', openai:'sk-...', gemini:'AIza...'};
-    keyIn.placeholder = providers.find(function(p){return p[0]===aiProvider;})[1] + ' API key (' + labels[aiProvider] + ')';
-    keyIn.value = aiKeys[aiProvider] || '';
-  }
-  providers.forEach(function(p){
-    var b = Btn('mt-btn'+(aiProvider===p[0]?' on':''), p[1], function(){
-      aiProvider = p[0];
-      providerRow.querySelectorAll('.mt-btn').forEach(function(btn){btn.classList.remove('on');});
-      b.classList.add('on');
-      refreshKeyField();
-    });
-    providerRow.appendChild(b);
-  });
-  card.appendChild(providerRow);
-  refreshKeyField();
-  card.appendChild(keyField);
-  body.appendChild(card);
-
-  var statusBox = D('');
-  statusBox.id = 'ai-settings-status';
-  statusBox.style.cssText = 'display:none;margin-bottom:14px;padding:10px 12px;border-radius:9px;font-size:12px;font-weight:600;text-align:center;line-height:1.4';
-  body.appendChild(statusBox);
-
-  function showStatus(msg, isError){
-    statusBox.textContent = msg;
-    statusBox.style.display = 'block';
-    statusBox.style.background = isError ? 'var(--rbg)' : 'var(--gbg)';
-    statusBox.style.color = isError ? 'var(--re)' : 'var(--gr)';
-    statusBox.style.border = '0.5px solid ' + (isError ? 'var(--rbd)' : 'var(--gbd)');
-  }
-
-  var savedKeyOnEntry = aiKeys[aiProvider];
-  if (savedKeyOnEntry) {
-    showStatus((providers.find(function(p){return p[0]===aiProvider;})[1]) + ' key is currently saved and active.', false);
-  }
-
-  var saveBtn = Btn('btn btn-gap', 'Save AI settings', function() {
-    var key = keyIn.value.trim();
-    saveBtn.textContent = 'Saving...';
-    aiKeys[aiProvider] = key;
+  function persistAiSettings(cb){
     anthropicKey = aiKeys.anthropic;
     localStorage.setItem('dash_ai_provider', aiProvider);
     localStorage.setItem('dash_ai_keys', JSON.stringify(aiKeys));
-    var providerLabel = providers.find(function(p){return p[0]===aiProvider;})[1];
-    if (user) {
-      db.collection('users').doc(user.uid).set({ aiProvider: aiProvider, aiKeys: aiKeys }, {merge:true}).then(function() {
-        saveBtn.textContent = 'Save AI settings';
-        showStatus(key ? (providerLabel + ' key saved and active.') : (providerLabel + ' key removed.'), false);
-      }).catch(function() {
-        saveBtn.textContent = 'Save AI settings';
-        showStatus('Saved on this device only — sync to your account failed.', true);
+    if(user){
+      db.collection('users').doc(user.uid).set({aiProvider:aiProvider,aiKeys:aiKeys},{merge:true})
+        .then(cb).catch(cb);
+    } else { cb(); }
+  }
+
+  providers.forEach(function(prov){
+    var card = D('profile-section');
+    card.style.marginBottom = '10px';
+
+    // Header row: provider name + active badge + action buttons
+    var hdr = D('');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px';
+    var lbl = T('span','',prov.label);
+    lbl.style.cssText = 'font-size:14px;font-weight:700;color:var(--tx)';
+    hdr.appendChild(lbl);
+
+    var hasKey = !!(aiKeys[prov.id]);
+    var isActive = aiProvider === prov.id && hasKey;
+
+    if(isActive){
+      var badge = T('span','','Active');
+      badge.style.cssText = 'font-size:10px;font-weight:700;background:var(--gbg);color:var(--gr);border:0.5px solid var(--gbd);padding:2px 7px;border-radius:20px';
+      hdr.appendChild(badge);
+    } else if(hasKey){
+      var setBtn = Btn('btn-sm','Set active',function(){
+        aiProvider = prov.id;
+        persistAiSettings(function(){
+          showToast(prov.label+' set as active');
+          renderAiSettings();
+        });
+      });
+      setBtn.style.cssText = 'background:var(--bbg);color:var(--bl);border-color:var(--bbd);margin-left:auto';
+      hdr.appendChild(setBtn);
+    }
+    card.appendChild(hdr);
+
+    // Provider note
+    var note = T('div','',prov.note);
+    note.style.cssText = 'font-size:11px;color:var(--mu);margin-bottom:10px';
+    card.appendChild(note);
+
+    // Key status row
+    var statusRow = D('');
+    statusRow.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+    if(hasKey){
+      var keyMask = T('div','','Key saved');
+      keyMask.style.cssText = 'flex:1;font-size:13px;color:var(--tx);font-weight:600';
+      statusRow.appendChild(keyMask);
+
+      var editBtn = Btn('btn-sm','Edit',function(){
+        renderEditRow(card, prov, statusRow);
+      });
+      editBtn.style.cssText = 'background:var(--s2);color:var(--tx);border-color:var(--bd)';
+      statusRow.appendChild(editBtn);
+
+      var removeBtn = Btn('btn-sm','Remove',function(){
+        if(!confirm('Remove '+prov.label+' key?')) return;
+        aiKeys[prov.id] = null;
+        if(aiProvider === prov.id){
+          // Switch active to another provider that has a key
+          var other = providers.find(function(p){return p.id!==prov.id&&aiKeys[p.id];});
+          aiProvider = other ? other.id : 'anthropic';
+        }
+        persistAiSettings(function(){
+          showToast(prov.label+' key removed');
+          renderAiSettings();
+        });
+      });
+      statusRow.appendChild(removeBtn);
+    } else {
+      var noKey = T('div','','No key saved');
+      noKey.style.cssText = 'flex:1;font-size:13px;color:var(--mu)';
+      statusRow.appendChild(noKey);
+
+      var addBtn = Btn('btn-sm','Add key',function(){
+        renderEditRow(card, prov, statusRow);
+      });
+      addBtn.style.cssText = 'background:var(--accent-bg);color:var(--accent);border-color:var(--accent-bd)';
+      statusRow.appendChild(addBtn);
+    }
+    card.appendChild(statusRow);
+    body.appendChild(card);
+  });
+}
+
+function renderEditRow(card, prov, statusRow){
+  // Replace the status row with an inline edit field + save/cancel
+  statusRow.innerHTML = '';
+  statusRow.style.flexDirection = 'column';
+  statusRow.style.alignItems = 'stretch';
+  statusRow.style.gap = '8px';
+
+  var keyIn = E('input');
+  keyIn.type = 'text';
+  keyIn.placeholder = prov.hint;
+  keyIn.value = aiKeys[prov.id] || '';
+  keyIn.style.cssText = 'width:100%;padding:10px 12px;border:1.5px solid var(--accent);border-radius:9px;font-size:13px;background:var(--bg);color:var(--tx);outline:none;font-family:inherit';
+  statusRow.appendChild(keyIn);
+  setTimeout(function(){keyIn.focus();},50);
+
+  var btnRow = D('');
+  btnRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px';
+
+  var cancelBtn = Btn('btn btn-out','Cancel',function(){
+    var ai = document.getElementById('ai-settings-body');
+    if(ai){ renderAiSettings(); }
+  });
+  var saveBtn = Btn('btn','Save',function(){
+    var key = keyIn.value.trim();
+    if(!key){showToast('Enter a key first');return;}
+    saveBtn.textContent = 'Saving...';
+    aiKeys[prov.id] = key;
+    // Auto-set as active when saving a new key if none is currently active
+    var currentActiveHasKey = aiKeys[aiProvider];
+    if(!currentActiveHasKey) aiProvider = prov.id;
+    var user = auth.currentUser;
+    anthropicKey = aiKeys.anthropic;
+    localStorage.setItem('dash_ai_provider', aiProvider);
+    localStorage.setItem('dash_ai_keys', JSON.stringify(aiKeys));
+    if(user){
+      db.collection('users').doc(user.uid).set({aiProvider:aiProvider,aiKeys:aiKeys},{merge:true}).then(function(){
+        showToast(prov.label+' key saved');
+        renderAiSettings();
+      }).catch(function(){
+        showToast('Saved locally');
+        renderAiSettings();
       });
     } else {
-      saveBtn.textContent = 'Save AI settings';
-      showStatus('Saved on this device.', false);
+      showToast('Saved');
+      renderAiSettings();
     }
   });
-  body.appendChild(saveBtn);
+  ap(btnRow, cancelBtn, saveBtn);
+  statusRow.appendChild(btnRow);
 }
 
 // ── AUTH STATE ────────────────────────────────────────────────────────────
