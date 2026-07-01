@@ -454,6 +454,8 @@ function cCol(p){return p>110?'#c0392b':p>85?'#a06000':'#2a6029';}
 var sd=todayKey(),cy=new Date().getFullYear(),cm=new Date().getMonth();
 var insRange='7d'; // '7d' | '30d' | 'year' | 'custom'
 var insCustomStart=null, insCustomEnd=null;
+var insAiGeneration=0; // incremented on each renderInsightsBody call so stale AI responses are ignored
+var insBodyDebounce=null; // prevents rapid range switching from firing multiple API calls
 var AD={};
 var fMealType='Lunch',fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
 var fLookupResult=null;
@@ -1955,7 +1957,8 @@ function renderRangeBar(){
       } else {
         picker.style.display='none';
         renderRangeBar();
-        renderInsightsBody();
+        if(insBodyDebounce)clearTimeout(insBodyDebounce);
+        insBodyDebounce=setTimeout(function(){renderInsightsBody();},300);
       }
     });
     bar.appendChild(b);
@@ -2043,6 +2046,8 @@ function renderInsights(){
 }
 
 function renderInsightsBody(){
+  insAiGeneration++; // any in-flight AI fetch from a previous call is now stale
+  var thisGeneration=insAiGeneration;
   var body=document.getElementById('insights-body');
   body.innerHTML='';
   var rangeDays=resolveInsightsRange();
@@ -2215,7 +2220,7 @@ function renderInsightsBody(){
     aiBody.appendChild(aiLoading);
     aiCard.appendChild(aiBody);
     body.appendChild(aiCard);
-    fetchAiInsightCommentary(rangeDays,{n:n,workoutDays:workoutDays,avgKcal:avgKcal,avgWater:avgWater,weightChange:weightChange,foodDays:foodDays,rangeLbl:rangeLbl});
+    fetchAiInsightCommentary(rangeDays,{n:n,workoutDays:workoutDays,avgKcal:avgKcal,avgWater:avgWater,weightChange:weightChange,foodDays:foodDays,rangeLbl:rangeLbl},thisGeneration);
   }
 }
 
@@ -2223,7 +2228,7 @@ function renderInsightsBody(){
 // configured AI provider for a short, personalized take — kept separate
 // from the rule-based analysis above so the page is never blocked waiting
 // on a network call, and still fully useful with no key configured at all.
-function fetchAiInsightCommentary(rangeDays,stats){
+function fetchAiInsightCommentary(rangeDays,stats,generation){
   var key=aiKeys[aiProvider];
   var summary='Training+nutrition data for '+stats.rangeLbl+' ('+stats.n+' days): '
     +stats.workoutDays+' workout days completed, '
@@ -2234,17 +2239,18 @@ function fetchAiInsightCommentary(rangeDays,stats){
   var prompt='You are a supportive fitness coach. Based on this summary, give exactly 2-3 short sentences of specific, actionable, encouraging commentary — no generic platitudes, reference the actual numbers given. Summary: '+summary;
 
   var req=buildAiRequest(aiProvider,key,prompt);
-  var aiBody=document.getElementById('ai-insight-body');
-  if(!req||!aiBody)return;
+  if(!req)return;
 
   fetch(req.url,{method:'POST',headers:req.headers,body:JSON.stringify(req.body)})
     .then(function(r){return r.json();})
     .then(function(data){
+      if(generation!==insAiGeneration)return; // user switched range, discard
+      var aiBody=document.getElementById('ai-insight-body');
+      if(!aiBody)return;
       var text=extractAiText(aiProvider,data);
-      if(!aiBody)return; // user may have navigated away or switched range
       if(!text){
         aiBody.innerHTML='';
-        aiBody.appendChild(T('div','ic-row','Couldn\'t reach the AI provider right now — check your key in AI Settings.'));
+        aiBody.appendChild(T('div','ic-row','Couldn\'t reach the AI provider — check your key in AI Settings.'));
         return;
       }
       aiBody.innerHTML='';
@@ -2253,10 +2259,11 @@ function fetchAiInsightCommentary(rangeDays,stats){
       aiBody.appendChild(p);
     })
     .catch(function(){
+      if(generation!==insAiGeneration)return; // stale
       var b=document.getElementById('ai-insight-body');
       if(!b)return;
       b.innerHTML='';
-      b.appendChild(T('div','ic-row','Couldn\'t reach the AI provider right now — check your key in AI Settings.'));
+      b.appendChild(T('div','ic-row','Couldn\'t reach the AI provider — check your key in AI Settings.'));
     });
 }
 
