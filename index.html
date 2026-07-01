@@ -2,8 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>My Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Forma</title>
+
+<!-- PWA manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Theme color — matches the dark topbar -->
+<meta name="theme-color" content="#13161c">
+
+<!-- iOS PWA — standalone full-screen, status bar style, icon -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Forma">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Prevent tap highlight and text selection on UI elements -->
+<meta name="mobile-web-app-capable" content="yes">
+
 <style>
 :root{
   --bg:#f5f6f8;--sf:#fff;--s2:#fafbfc;--bd:#e3e6eb;--tx:#13161c;--mu:#6b7280;--fa:#c4c9d2;
@@ -285,8 +301,8 @@ input,select,textarea{font-size:16px!important}
       </div>
     </div>
     <div id="login-form-wrap" style="display:none;width:100%;max-width:360px">
-      <div style="color:#fff;font-size:24px;font-weight:700;margin-bottom:4px;text-align:center">My Dashboard</div>
-      <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px;text-align:center">Training + nutrition tracker</div>
+      <div style="color:#fff;font-size:28px;font-weight:800;margin-bottom:4px;text-align:center;letter-spacing:-.02em">Forma</div>
+      <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:40px;text-align:center">Your fitness & nutrition tracker</div>
       <div id="login-box" style="background:#fff;border-radius:16px;padding:24px;width:100%;position:relative">
         <button id="login-box-back" onclick="goScreen('s-cal')" style="display:none;position:absolute;top:14px;left:14px;background:var(--s2);border:none;color:var(--tx);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;align-items:center;justify-content:center">&#8249;</button>
         <div id="login-content"></div>
@@ -299,7 +315,7 @@ input,select,textarea{font-size:16px!important}
   <div class="topbar">
     <button class="topbar-back" id="menu-btn" title="Menu" aria-label="Open menu">&#9776;</button>
     <div style="flex:1;min-width:0">
-      <div class="topbar-eyebrow">Dashboard</div>
+      <div class="topbar-eyebrow">Forma</div>
       <div class="topbar-title">Overview</div>
     </div>
     <div class="topbar-actions">
@@ -2764,6 +2780,17 @@ function seedAndLoad(){
     renderCal();
     goScreen('s-cal');
   }).catch(function(e){console.error(e);renderCal();goScreen('s-cal');});
+}
+
+// Register the service worker for PWA installability and offline shell caching
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      console.log('Forma SW registered:', reg.scope);
+    }).catch(function(err){
+      console.log('SW registration failed:', err);
+    });
+  });
 }
 
 </script>
