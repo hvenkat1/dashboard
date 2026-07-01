@@ -1247,7 +1247,10 @@ function buildFoodForm(){
     fSearchTimer=setTimeout(function(){ searchFoods(q,dropdown,sInput,qtyRow,addRow); },350);
   });
   sInput.addEventListener('blur',function(){
-    setTimeout(function(){dropdown.style.display='none';},150);
+    // Use a longer delay so the AI response (1-2s) can populate the dropdown
+    // before it gets hidden — the mousedown handler on each item fires before
+    // blur, so legitimate selections still work with this longer timeout.
+    setTimeout(function(){dropdown.style.display='none';},2000);
   });
   sInput.addEventListener('focus',function(){
     if(dropdown.innerHTML)dropdown.style.display='block';
@@ -1665,14 +1668,14 @@ function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
     renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     return;
   }
-  // Share the global throttle with Insights so both don't hit rate limits
-  // simultaneously — if an Insights call just fired, wait before searching.
-  var now=Date.now();
-  if(now-lastAiCallTime<5000){
-    renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
-    return;
-  }
-  lastAiCallTime=now;
+  // Show a loading state in the dropdown while the AI call is in flight
+  // so the user knows something is happening and doesn't dismiss it.
+  dropdown.innerHTML='';
+  var loading=D('food-dd-empty');
+  loading.textContent='Asking '+(aiProvider==='anthropic'?'Claude':aiProvider==='openai'?'OpenAI':'Gemini')+'...';
+  dropdown.appendChild(loading);
+  dropdown.style.display='block';
+
   var prompt='Estimate nutrition for this food/quantity: "'+query+'". Respond with ONLY a JSON object, no markdown, no explanation: {"name":"food name","kcal_per_100":number,"protein_per_100":number,"carbs_per_100":number,"fat_per_100":number,"kind":"g or ml"}. The numbers must be per 100g or 100ml as appropriate for the food type.';
 
   var req=buildAiRequest(aiProvider,key,prompt);
