@@ -456,6 +456,7 @@ var insRange='7d'; // '7d' | '30d' | 'year' | 'custom'
 var insCustomStart=null, insCustomEnd=null;
 var insAiGeneration=0; // incremented on each renderInsightsBody call so stale AI responses are ignored
 var insBodyDebounce=null; // prevents rapid range switching from firing multiple API calls
+var lastAiCallTime=0; // global throttle — min 5s between any two AI calls
 var AD={};
 var fMealType='Lunch',fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
 var fLookupResult=null;
@@ -1958,7 +1959,7 @@ function renderRangeBar(){
         picker.style.display='none';
         renderRangeBar();
         if(insBodyDebounce)clearTimeout(insBodyDebounce);
-        insBodyDebounce=setTimeout(function(){renderInsightsBody();},300);
+        insBodyDebounce=setTimeout(function(){renderInsightsBody();},800);
       }
     });
     bar.appendChild(b);
@@ -2230,6 +2231,31 @@ function renderInsightsBody(){
 // on a network call, and still fully useful with no key configured at all.
 function fetchAiInsightCommentary(rangeDays,stats,generation){
   var key=aiKeys[aiProvider];
+  var aiBody=document.getElementById('ai-insight-body');
+
+  // OpenAI blocks direct browser requests with CORS — only Anthropic
+  // (explicit browser-access header) and Gemini (key in URL) work client-side.
+  if(aiProvider==='openai'){
+    if(aiBody){
+      aiBody.innerHTML='';
+      var msg=T('div','ic-row','OpenAI doesn\'t allow direct browser calls. Switch to Claude or Gemini in AI Settings.');
+      msg.style.color='var(--am)';
+      aiBody.appendChild(msg);
+    }
+    return;
+  }
+
+  // Global throttle — min 5s between AI insight calls to avoid rate limits.
+  var now=Date.now();
+  if(now-lastAiCallTime<5000){
+    if(aiBody){
+      aiBody.innerHTML='';
+      aiBody.appendChild(T('div','ic-row','Please wait a moment before refreshing insights.'));
+    }
+    return;
+  }
+  lastAiCallTime=now;
+
   var summary='Training+nutrition data for '+stats.rangeLbl+' ('+stats.n+' days): '
     +stats.workoutDays+' workout days completed, '
     +(stats.avgKcal?('avg '+stats.avgKcal+' kcal/day'):'calories not consistently logged')+', '
@@ -2244,22 +2270,22 @@ function fetchAiInsightCommentary(rangeDays,stats,generation){
   fetch(req.url,{method:'POST',headers:req.headers,body:JSON.stringify(req.body)})
     .then(function(r){return r.json();})
     .then(function(data){
-      if(generation!==insAiGeneration)return; // user switched range, discard
-      var aiBody=document.getElementById('ai-insight-body');
-      if(!aiBody)return;
+      if(generation!==insAiGeneration)return;
+      var b=document.getElementById('ai-insight-body');
+      if(!b)return;
       var text=extractAiText(aiProvider,data);
       if(!text){
-        aiBody.innerHTML='';
-        aiBody.appendChild(T('div','ic-row','Couldn\'t reach the AI provider — check your key in AI Settings.'));
+        b.innerHTML='';
+        b.appendChild(T('div','ic-row','Couldn\'t get a response — check your key in AI Settings.'));
         return;
       }
-      aiBody.innerHTML='';
+      b.innerHTML='';
       var p=D('');p.style.cssText='font-size:13px;color:var(--tx);line-height:1.6';
       p.textContent=text.trim();
-      aiBody.appendChild(p);
+      b.appendChild(p);
     })
     .catch(function(){
-      if(generation!==insAiGeneration)return; // stale
+      if(generation!==insAiGeneration)return;
       var b=document.getElementById('ai-insight-body');
       if(!b)return;
       b.innerHTML='';
