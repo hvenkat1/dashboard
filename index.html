@@ -435,9 +435,31 @@ input,select,textarea{font-size:16px!important}
 
 <div class="toast" id="tst"></div>
 
+<!-- Barcode scanner modal — full screen overlay with live camera feed -->
+<div id="barcode-modal" style="display:none;position:fixed;inset:0;z-index:200;background:#000;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,0,0,.8)">
+    <div style="color:#fff;font-size:15px;font-weight:700">Scan barcode</div>
+    <button id="barcode-close" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer">✕</button>
+  </div>
+  <div style="position:relative;flex:1;overflow:hidden">
+    <video id="barcode-video" style="width:100%;height:100%;object-fit:cover"></video>
+    <!-- Targeting reticle -->
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+      <div style="width:240px;height:140px;border:2px solid #ff5a36;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.5)">
+        <div style="position:absolute;top:-1px;left:-1px;width:24px;height:24px;border-top:3px solid #ff5a36;border-left:3px solid #ff5a36;border-radius:10px 0 0 0"></div>
+        <div style="position:absolute;top:-1px;right:-1px;width:24px;height:24px;border-top:3px solid #ff5a36;border-right:3px solid #ff5a36;border-radius:0 10px 0 0"></div>
+        <div style="position:absolute;bottom:-1px;left:-1px;width:24px;height:24px;border-bottom:3px solid #ff5a36;border-left:3px solid #ff5a36;border-radius:0 0 0 10px"></div>
+        <div style="position:absolute;bottom:-1px;right:-1px;width:24px;height:24px;border-bottom:3px solid #ff5a36;border-right:3px solid #ff5a36;border-radius:0 0 10px 0"></div>
+      </div>
+    </div>
+  </div>
+  <div id="barcode-status" style="padding:14px 16px;background:rgba(0,0,0,.8);color:rgba(255,255,255,.7);font-size:13px;text-align:center">Point camera at a barcode</div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <script>
 firebase.initializeApp({apiKey:"AIzaSyAnMjUc_j-GE5kJG-5SRx-QStUMIYTQPiU",authDomain:"diet-and-training-dashboard.firebaseapp.com",projectId:"diet-and-training-dashboard",storageBucket:"diet-and-training-dashboard.firebasestorage.app",messagingSenderId:"10655379210",appId:"1:10655379210:web:c3b1b5806588e929e3d4f3"});
 var db=firebase.firestore();
@@ -1313,15 +1335,23 @@ function buildFoodForm(){
   body.appendChild(mtRow);
 
   body.appendChild(T('div','slbl','Add food item'));
-  var hint=T('div','','Search for a food, then enter how much you had — or snap a photo of your meal');
+  var hint=T('div','','Search for a food, snap a photo, or scan a barcode');
   hint.style.cssText='font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.5';
   body.appendChild(hint);
 
-  // Snap a Meal button — sits above the search field as its own CTA
+  // Two quick-action buttons above the search field
+  var quickRow=D('');quickRow.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px';
+
   var snapBtn=E('button','btn btn-out');
-  snapBtn.style.cssText='display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;width:100%;padding:11px';
-  snapBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Snap a meal';
-  body.appendChild(snapBtn);
+  snapBtn.style.cssText='display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;font-size:12px';
+  snapBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Snap meal';
+
+  var barcodeBtn=E('button','btn btn-out');
+  barcodeBtn.style.cssText='display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;font-size:12px';
+  barcodeBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg> Scan barcode';
+
+  ap(quickRow, snapBtn, barcodeBtn);
+  body.appendChild(quickRow);
 
   fSelectedFood=null;
 
@@ -1349,6 +1379,9 @@ function buildFoodForm(){
   function triggerCamera(){ fileIn.click(); }
   camBtn.addEventListener('click', triggerCamera);
   snapBtn.addEventListener('click', triggerCamera);
+  barcodeBtn.addEventListener('click', function(){
+    openBarcodeScanner(photoResultArea,qtyRow,addRow,sInput,dropdown);
+  });
 
   ap(searchRow, foodSearchWrap, camBtn);
   body.appendChild(searchRow);
@@ -1828,6 +1861,127 @@ function tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow){
       }
     })
     .catch(function(){ tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow); });
+}
+
+// ── BARCODE SCANNER ──────────────────────────────────────────────────────
+// Uses ZXing to continuously scan the camera feed. On a successful decode,
+// the barcode is looked up on Open Food Facts and the result is shown in the
+// same photo-result area used by the meal snap feature.
+
+var barcodeReader=null; // ZXing reader instance, kept across calls
+
+function openBarcodeScanner(resultArea,qtyRow,addRow,sInput,dropdown){
+  var modal=document.getElementById('barcode-modal');
+  var video=document.getElementById('barcode-video');
+  var status=document.getElementById('barcode-status');
+  var closeBtn=document.getElementById('barcode-close');
+
+  modal.style.display='flex';
+  status.textContent='Starting camera...';
+
+  // ZXing is loaded as a UMD bundle — the module is at ZXing.BrowserMultiFormatReader
+  try{
+    if(!window.ZXing){
+      status.textContent='Barcode library not loaded. Check your connection and try again.';
+      return;
+    }
+    barcodeReader=new window.ZXing.BrowserMultiFormatReader();
+  } catch(e){
+    status.textContent='Barcode scanner unavailable on this device.';
+    return;
+  }
+
+  closeBtn.onclick=function(){ closeBarcodeScanner(); };
+
+  barcodeReader.listVideoInputDevices().then(function(devices){
+    if(!devices||!devices.length){
+      status.textContent='No camera found.';
+      return;
+    }
+    // Prefer back camera on mobile
+    var device=devices.find(function(d){return /back|rear|environment/i.test(d.label);})||devices[devices.length-1];
+    status.textContent='Point at a barcode — hold steady';
+
+    barcodeReader.decodeFromVideoDevice(device.deviceId, video, function(result,err){
+      if(result){
+        var barcode=result.getText();
+        closeBarcodeScanner();
+        lookupBarcode(barcode,resultArea,qtyRow,addRow,sInput,dropdown);
+      }
+      // err fires on every frame that isn't a barcode — that's normal, ignore
+    });
+  }).catch(function(e){
+    status.textContent='Camera permission denied — please allow camera access.';
+  });
+}
+
+function closeBarcodeScanner(){
+  var modal=document.getElementById('barcode-modal');
+  modal.style.display='none';
+  if(barcodeReader){
+    try{barcodeReader.reset();}catch(e){}
+    barcodeReader=null;
+  }
+}
+
+function lookupBarcode(barcode,resultArea,qtyRow,addRow,sInput,dropdown){
+  resultArea.innerHTML='';
+  var loading=D('loading');
+  loading.appendChild(D('spinner'));
+  loading.appendChild(T('span','','Looking up barcode '+barcode+'...'));
+  resultArea.appendChild(loading);
+
+  fetch('https://world.openfoodfacts.org/api/v0/product/'+barcode+'.json')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      resultArea.innerHTML='';
+      if(!data.product||data.status===0){
+        var notFound=T('div','','Product not found in Open Food Facts. Try searching by name instead.');
+        notFound.style.cssText='font-size:12px;color:var(--mu);padding:10px 0';
+        resultArea.appendChild(notFound);
+        return;
+      }
+      var p=data.product;
+      var n=p.nutriments||{};
+      var kcal=n['energy-kcal_100g']||(n['energy_100g']?n['energy_100g']/4.184:0);
+      var name=p.product_name||(p.brands?p.brands+' product':'Unknown product');
+      var brand=p.brands?p.brands.split(',')[0]:'';
+      if(brand&&!name.includes(brand))name+=' ('+brand+')';
+
+      // Populate the search field with the product name and trigger the
+      // standard search flow — this ensures the qty+unit row appears
+      sInput.value=name;
+      fSelectedFood={
+        name:name,
+        source:'Barcode scan',
+        per100:{
+          k:Math.round(kcal||0),
+          p:n['proteins_100g']||0,
+          c:n['carbohydrates_100g']||0,
+          fat:n['fat_100g']||0,
+          kind:'g'
+        }
+      };
+      // Show a confirmation card + immediately reveal the qty fields
+      var card=D('lookup-result');
+      var nameRow=D('row-flex');
+      nameRow.appendChild(T('div','lr-name',name));
+      nameRow.appendChild(T('div','badge b-plan',Math.round(kcal||0)+' kcal/100g'));
+      card.appendChild(nameRow);
+      card.appendChild(T('div','lr-detail','P:'+Math.round(n['proteins_100g']||0)+'g  C:'+Math.round(n['carbohydrates_100g']||0)+'g  F:'+Math.round(n['fat_100g']||0)+'g per 100g'));
+      resultArea.appendChild(card);
+      // Show the qty+unit row so user can enter how much they had
+      if(qtyRow)qtyRow.style.display='grid';
+      if(addRow)addRow.style.display='block';
+      var qtyIn=document.getElementById('food-qty-input');
+      var unitSel=document.getElementById('food-unit-select');
+      if(unitSel)unitSel.value='g';
+      if(qtyIn)setTimeout(function(){qtyIn.focus();},100);
+    })
+    .catch(function(){
+      resultArea.innerHTML='';
+      resultArea.appendChild(T('div','','Barcode lookup failed — check your connection.'));
+    });
 }
 
 // Photo food logging — reads the image file, converts to base64, and sends
