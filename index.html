@@ -1086,113 +1086,87 @@ function renderDayView(){
   }
   wc.appendChild(wb);body.appendChild(wc);
 
-  // Daily Insight card — instant rule-based summary, no AI needed.
-  // Only shown for today or past days with some data logged.
+  // Daily Insight — one sharp AI-generated sentence, cached per date so
+  // Gemini is only called once per day regardless of how many times you
+  // open My Day. Falls back gracefully if no key is configured.
   var hasAnyData=d.training||d.food||d.weight;
-  if(hasAnyData){
+  if(hasAnyData&&!isFutureDate(sd)){
     var ic=D('card');
     var ih=D('card-hdr');
     ih.appendChild(dottedTitle('Daily Insight','var(--accent)'));
     ic.appendChild(ih);
     var ib=D('card-body');
-
-    var f=d.food||{};
-    var kcal=f.kcal||0;
-    var water=f.water||0;
-    var protein=f.protein||'';
-    var training=d.training||{};
-    var isFuture=isFutureDate(sd);
-    var isToday=sd===todayKey();
-
-    // Summary line at the top
-    var summaryLine=buildDailySummaryLine(training,kcal,water,protein,isToday,isFuture);
-    var summary=T('div','',summaryLine.text);
-    summary.style.cssText='font-size:13px;font-weight:600;color:'+summaryLine.color+';margin-bottom:14px;line-height:1.4';
-    ib.appendChild(summary);
-
-    // Progress rows
-    function progressRow(label,val,target,unit,color){
-      var pct=target>0?Math.min(100,Math.round(val/target*100)):0;
-      var row=D('');row.style.cssText='margin-bottom:12px';
-      var hdr=D('');hdr.style.cssText='display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--mu);margin-bottom:4px';
-      hdr.appendChild(T('span','',label));
-      hdr.appendChild(T('span','',(val||'0')+unit+' / '+target+unit+' ('+pct+'%)'));
-      var track=D('');track.style.cssText='height:6px;background:var(--bd);border-radius:3px;overflow:hidden';
-      var fill=D('');fill.style.cssText='height:100%;width:'+pct+'%;background:'+color+';border-radius:3px;transition:width .4s';
-      track.appendChild(fill);
-      row.appendChild(hdr);row.appendChild(track);
-      return row;
-    }
-
-    // Calories
-    if(kcal>0){
-      var kcalColor=kcal>=KT?'var(--gr)':kcal>=KT*0.7?'var(--am)':'var(--re)';
-      ib.appendChild(progressRow('Calories',kcal,KT,' kcal',kcalColor));
-    }
-
-    // Water
-    if(water>0){
-      var waterColor=water>=WT?'var(--bl)':water>=WT*0.6?'var(--am)':'var(--re)';
-      ib.appendChild(progressRow('Water',water,WT,'L',waterColor));
-    }
-
-    // Workout status
-    var wrow=D('');wrow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px';
-    wrow.appendChild(T('span','','\u2713 Training'));
-    wrow.querySelector('span').style.cssText='font-size:11px;font-weight:600;color:var(--mu)';
-    var wstatus=T('span','',
-      training.status==='done'?'Completed \uD83D\uDCAA':
-      training.status==='skip'?'Skipped':
-      training.status==='rest'?'Rest day':
-      isFuture?'—':'Not logged');
-    wstatus.style.cssText='font-size:12px;font-weight:700;color:'+(
-      training.status==='done'?'var(--gr)':
-      training.status==='rest'?'var(--mu)':
-      training.status==='skip'?'var(--re)':'var(--fa)');
-    wrow.appendChild(wstatus);
-    ib.appendChild(wrow);
-
-    // Protein level
-    if(protein){
-      var pcol=protein==='High'||protein==='Good'?'var(--gr)':protein==='Moderate'?'var(--am)':'var(--re)';
-      var prow=D('');prow.style.cssText='display:flex;justify-content:space-between;align-items:center';
-      var pl=T('span','','Protein');pl.style.cssText='font-size:11px;font-weight:600;color:var(--mu)';
-      var pv=T('span','',protein);pv.style.cssText='font-size:12px;font-weight:700;color:'+pcol;
-      prow.appendChild(pl);prow.appendChild(pv);
-      ib.appendChild(prow);
-    }
-
+    var insightText=T('div','');
+    insightText.id='daily-insight-text';
+    insightText.style.cssText='font-size:14px;line-height:1.6;color:var(--tx);font-style:italic;padding:2px 0';
+    ib.appendChild(insightText);
     ic.appendChild(ib);
     body.appendChild(ic);
+    renderDailyInsight(d,insightText);
   }
 }
 
-function buildDailySummaryLine(training,kcal,water,protein,isToday,isFuture){
-  if(isFuture) return {text:'Future date — nothing logged yet.',color:'var(--mu)'};
-  var done=training&&training.status==='done';
-  var goodCal=kcal>=KT*0.8;
-  var goodWater=water>=WT*0.8;
-  var goodProtein=protein==='Good'||protein==='High';
+// Cache: {date: 'YYYY-MM-DD', text: '...'}  — one entry, refreshed when
+// the date changes or data changes significantly.
+var dailyInsightCache={date:null,text:null};
 
-  if(done&&goodCal&&goodWater&&goodProtein)
-    return {text:'Great day — training done, nutrition on point.',color:'var(--gr)'};
-  if(done&&goodCal&&goodWater)
-    return {text:'Strong day — workout done and calories/water on track.',color:'var(--gr)'};
-  if(done&&goodCal&&!goodWater)
-    return {text:'Workout done and calories on track — drink more water.',color:'var(--am)'};
-  if(done&&!goodCal&&goodWater)
-    return {text:'Workout done and well hydrated — eat a bit more.',color:'var(--am)'};
-  if(done&&!goodCal&&!goodWater)
-    return {text:'Workout done — focus on nutrition and water.',color:'var(--am)'};
-  if(!done&&goodCal&&goodWater)
-    return {text:'Good nutrition today — '+(isToday?'still time to get a workout in.':'no training logged.'),color:'var(--am)'};
-  if(training&&training.status==='rest')
-    return {text:'Rest day — recovery is part of the plan.',color:'var(--mu)'};
-  if(training&&training.status==='skip')
-    return {text:'Training skipped — make it count tomorrow.',color:'var(--re)'};
-  if(!kcal&&!water&&!training)
-    return {text:isToday?'Nothing logged yet today — start tracking!':'No data logged for this day.',color:'var(--mu)'};
-  return {text:isToday?'Day in progress — keep logging.':'Day complete.',color:'var(--mu)'};
+function renderDailyInsight(d,el){
+  var key=aiKeys[aiProvider];
+  var cacheKey=sd+'|'+(d.food?d.food.kcal:0)+'|'+(d.training?d.training.status:'')+'|'+(d.weight||'');
+
+  // Show cached insight immediately if available for this date+data combo
+  if(dailyInsightCache.date===cacheKey&&dailyInsightCache.text){
+    el.textContent='"'+dailyInsightCache.text+'"';
+    return;
+  }
+
+  if(!key){
+    el.style.cssText+='color:var(--mu);font-style:normal;font-size:12px';
+    el.textContent='Add a Gemini key in AI Settings for personalised daily insights.';
+    return;
+  }
+
+  el.style.color='var(--mu)';
+  el.style.fontStyle='normal';
+  el.style.fontSize='12px';
+  el.textContent='Thinking...';
+
+  var f=d.food||{};
+  var facts=[];
+  if(d.training&&d.training.status) facts.push('training: '+d.training.status+(d.training.kcal?' ('+d.training.kcal+' kcal burned)':''));
+  if(f.kcal) facts.push('calories eaten: '+f.kcal+' (target '+KT+')');
+  if(f.water) facts.push('water: '+f.water+'L (target '+WT+'L)');
+  if(f.protein) facts.push('protein level: '+f.protein);
+  if(f.caffeine) facts.push('caffeine: '+f.caffeine+'mg');
+  if(d.weight) facts.push('weight logged: '+d.weight+'kg');
+
+  var prompt='You are a direct, no-fluff fitness coach. Given today\'s data for this person, write exactly ONE sentence of genuinely useful insight or advice — something specific they might not have thought of, not just restating the numbers. Be direct, warm, and specific. Data: '+facts.join(', ')+'. One sentence only, no quotes needed.';
+
+  var req=buildAiRequest(aiProvider,key,prompt);
+  if(!req){el.textContent='';return;}
+
+  fetch(req.url,{method:'POST',headers:req.headers,body:JSON.stringify(req.body)})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var text=extractAiText(aiProvider,data);
+      if(!text||!document.getElementById('daily-insight-text')){return;}
+      var clean=text.trim().replace(/^["']|["']$/g,'');
+      dailyInsightCache={date:cacheKey,text:clean};
+      el.style.color='var(--tx)';
+      el.style.fontStyle='italic';
+      el.style.fontSize='14px';
+      el.textContent='\u201c'+clean+'\u201d';
+    })
+    .catch(function(){
+      if(document.getElementById('daily-insight-text'))
+        el.textContent='';
+    });
+}
+
+function buildDailySummaryLine(training,kcal,water,protein,isToday,isFuture){
+  // Kept for backward compatibility — no longer used by the day view
+  // but may be referenced elsewhere.
+  return {text:'',color:'var(--mu)'};
 }
 
 function autoFlags(f,tk){
@@ -1339,20 +1313,56 @@ function buildFoodForm(){
   body.appendChild(mtRow);
 
   body.appendChild(T('div','slbl','Add food item'));
-  var hint=T('div','','Search for a food, then enter how much you had');
+  var hint=T('div','','Search for a food, then enter how much you had — or snap a photo of your meal');
   hint.style.cssText='font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.5';
   body.appendChild(hint);
 
+  // Snap a Meal button — sits above the search field as its own CTA
+  var snapBtn=E('button','btn btn-out');
+  snapBtn.style.cssText='display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;width:100%;padding:11px';
+  snapBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Snap a meal';
+  body.appendChild(snapBtn);
+
   fSelectedFood=null;
 
-  var foodSearchWrap=D('');foodSearchWrap.style.cssText='position:relative;margin-bottom:10px';
+  // Search row: input + camera icon inline
+  var searchRow=D('');searchRow.style.cssText='display:flex;gap:8px;margin-bottom:10px;align-items:flex-start';
+  var foodSearchWrap=D('');foodSearchWrap.style.cssText='position:relative;flex:1';
   var sInput=Inp('food-search-input','text','Search for a food (e.g. rice, sambar, banana)');
   sInput.autocomplete='off';
   var dropdown=D('food-dropdown');dropdown.id='food-dropdown';
   dropdown.style.display='none';
   foodSearchWrap.appendChild(sInput);
   foodSearchWrap.appendChild(dropdown);
-  body.appendChild(foodSearchWrap);
+
+  var camBtn=E('button','');
+  camBtn.title='Take a photo';
+  camBtn.style.cssText='width:42px;height:42px;flex-shrink:0;background:var(--s2);border:1.5px solid var(--bd);border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--mu)';
+  camBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+
+  // Hidden file input — accepts images from camera or gallery
+  var fileIn=E('input','');
+  fileIn.type='file';fileIn.accept='image/*';fileIn.capture='environment';
+  fileIn.style.display='none';
+  body.appendChild(fileIn);
+
+  function triggerCamera(){ fileIn.click(); }
+  camBtn.addEventListener('click', triggerCamera);
+  snapBtn.addEventListener('click', triggerCamera);
+
+  ap(searchRow, foodSearchWrap, camBtn);
+  body.appendChild(searchRow);
+
+  // Photo analysis result area — shown while Gemini processes the image
+  var photoResultArea=D('');photoResultArea.id='photo-result-area';
+  body.appendChild(photoResultArea);
+
+  fileIn.addEventListener('change',function(){
+    var file=fileIn.files&&fileIn.files[0];
+    if(!file)return;
+    handleFoodPhoto(file,photoResultArea,qtyRow,addRow,sInput,dropdown);
+    fileIn.value=''; // reset so same photo can be re-selected if needed
+  });
 
   sInput.addEventListener('input',function(){
     fSelectedFood=null;
@@ -1820,6 +1830,128 @@ function tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow){
     .catch(function(){ tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow); });
 }
 
+// Photo food logging — reads the image file, converts to base64, and sends
+// to Gemini Vision with a structured prompt. Returns a list of identified
+// foods that slot directly into the existing dropdown + qty flow, so the
+// user experience after selecting a photo result is identical to selecting
+// a text search result.
+function handleFoodPhoto(file, resultArea, qtyRow, addRow, sInput, dropdown){
+  var key=aiKeys[aiProvider];
+  if(!key||aiProvider==='openai'){
+    resultArea.innerHTML='';
+    var msg=T('div','','Photo analysis needs a Gemini or Claude key configured in AI Settings.');
+    msg.style.cssText='font-size:12px;color:var(--am);padding:10px 0';
+    resultArea.appendChild(msg);
+    return;
+  }
+  if(aiProvider!=='gemini'){
+    // Claude also supports vision — route to it if that's what's configured
+    // (Gemini is preferred since it's free tier)
+  }
+
+  resultArea.innerHTML='';
+  var loading=D('loading');
+  loading.appendChild(D('spinner'));
+  loading.appendChild(T('span','','Analysing your meal...'));
+  resultArea.appendChild(loading);
+
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var base64=e.target.result.split(',')[1];
+    var mimeType=file.type||'image/jpeg';
+
+    var prompt='Look at this meal photo carefully. List every distinct food item you can see, with your best estimate of the quantity in grams or ml. For each item, also estimate the nutrition per 100g/100ml.\n\nRespond ONLY with a JSON array, no markdown, no explanation:\n[{"name":"food name","quantity_g":number,"kcal_per_100":number,"protein_per_100":number,"carbs_per_100":number,"fat_per_100":number,"kind":"g or ml"}]\n\nBe specific — "idli" not "rice cake". If you see rice, estimate the weight. If you see multiple items on a plate, list each separately. Maximum 8 items.';
+
+    var body;
+    var url;
+    var headers;
+
+    if(aiProvider==='gemini'){
+      url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(key);
+      headers={'Content-Type':'application/json'};
+      body={contents:[{parts:[
+        {text:prompt},
+        {inline_data:{mime_type:mimeType,data:base64}}
+      ]}]};
+    } else {
+      // Anthropic Claude vision
+      url='https://api.anthropic.com/v1/messages';
+      headers={'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+      body={model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:mimeType,data:base64}},
+        {type:'text',text:prompt}
+      ]}]};
+    }
+
+    fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)})
+      .then(function(r){return r.json();})
+      .then(function(data){
+        var text=extractAiText(aiProvider,data);
+        resultArea.innerHTML='';
+        if(!text){
+          resultArea.appendChild(T('div','','Couldn\'t analyse the photo — try again or search manually.'));
+          return;
+        }
+        var clean=text.replace(/```json|```/g,'').trim();
+        var items;
+        try{items=JSON.parse(clean);}catch(e){
+          resultArea.appendChild(T('div','','Couldn\'t parse the response — try again or search manually.'));
+          return;
+        }
+        if(!items||!items.length){
+          resultArea.appendChild(T('div','','No foods detected — try a clearer photo or search manually.'));
+          return;
+        }
+        // Show each detected item as a card the user can tap to add
+        var header=T('div','slbl','Detected in your photo');
+        header.style.marginTop='4px';
+        resultArea.appendChild(header);
+        items.forEach(function(item){
+          var card=D('lookup-result');
+          card.style.cursor='pointer';
+          var nameRow=D('row-flex');
+          nameRow.appendChild(T('div','lr-name',item.name));
+          var est=T('div','badge b-plan','~'+item.quantity_g+'g · '+Math.round((item.kcal_per_100||0)*item.quantity_g/100)+' kcal est.');
+          nameRow.appendChild(est);
+          card.appendChild(nameRow);
+          var macros=T('div','lr-detail','P:'+Math.round((item.protein_per_100||0)*item.quantity_g/100)+'g  C:'+Math.round((item.carbs_per_100||0)*item.quantity_g/100)+'g  F:'+Math.round((item.fat_per_100||0)*item.quantity_g/100)+'g');
+          card.appendChild(macros);
+          var actions=D('lr-actions');
+          var addBtn=Btn('btn-green','Add to meal',(function(it){
+            return function(){
+              var ratio=it.quantity_g/100;
+              fItems.push({
+                n:it.name+' (~'+it.quantity_g+'g)',
+                k:Math.round((it.kcal_per_100||0)*ratio),
+                p:Math.round((it.protein_per_100||0)*ratio*10)/10,
+                c:Math.round((it.carbs_per_100||0)*ratio*10)/10,
+                fat:Math.round((it.fat_per_100||0)*ratio*10)/10,
+                caff:0
+              });
+              card.style.opacity='0.4';
+              addBtn.textContent='Added ✓';
+              addBtn.disabled=true;
+              buildFoodForm();
+            };
+          })(item));
+          actions.appendChild(addBtn);
+          card.appendChild(actions);
+          resultArea.appendChild(card);
+        });
+        markAiCallTime();
+      })
+      .catch(function(){
+        resultArea.innerHTML='';
+        resultArea.appendChild(T('div','','Photo analysis failed — check your connection and try again.'));
+      });
+  };
+  reader.onerror=function(){
+    resultArea.innerHTML='';
+    resultArea.appendChild(T('div','','Couldn\'t read the image file.'));
+  };
+  reader.readAsDataURL(file);
+}
+
 function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
   var key=aiKeys[aiProvider];
   if(!key){
@@ -2284,7 +2416,9 @@ function renderInsightsBody(){
     statTile('Workouts',workoutDays+' / '+n,'days completed',workoutDays/n>=0.5?'var(--gr)':'var(--am)'),
     statTile('Avg calories',avgKcal?avgKcal+'':'--','kcal/day',avgKcal>0&&avgKcal<KT+200?'var(--gr)':'var(--am)'),
     statTile('Avg water',avgWater?avgWater+'L':'--','per day',avgWater>=3.5?'var(--gr)':'var(--am)'),
-    statTile('Weight change',weightChange!==null?((weightChange>0?'+':'')+weightChange+'kg'):'--','this range',weightChange===null?'var(--mu)':weightChange<0?'var(--gr)':'var(--re)')
+    statTile('Weight change',weightChange!==null?((weightChange>0?'+':'')+weightChange+'kg'):'--',
+      weightEntries.length>=2?(weightEntries[0].dk.slice(5)+' → '+weightEntries[weightEntries.length-1].dk.slice(5)):'this range',
+      weightChange===null?'var(--mu)':weightChange<0?'var(--gr)':'var(--re)')
   );
   body.appendChild(sg);
 
