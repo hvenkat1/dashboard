@@ -223,11 +223,17 @@ input,select,button,textarea{font-family:inherit}
 .spinner{width:16px;height:16px;border:2px solid var(--bd);border-top-color:var(--tx);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 .divhr{height:0.5px;background:var(--bd);margin:14px 0}
-.bnav{background:var(--sf);border-top:0.5px solid var(--bd);padding:8px 0 12px;display:flex;position:fixed;bottom:0;left:0;right:0;z-index:40}
-.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0}
-.bnav-icon{font-size:18px;line-height:1}
+.bnav{background:var(--sf);border-top:0.5px solid var(--bd);padding:6px 0 20px;display:flex;position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:520px;margin:0 auto}
+@media (min-width:700px){.bnav{left:50%;transform:translateX(-50%);right:auto;width:520px}}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 0;color:var(--mu);transition:color .15s}
+.bnav-item.on{color:var(--accent)}
+.bnav-item.on .bnav-lbl{color:var(--accent)}
+.bnav-icon{font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}
 .bnav-lbl{font-size:9px;font-weight:600;color:var(--mu)}
-.bnav-item.on .bnav-lbl{color:var(--tx)}
+.bnav-item.on .bnav-lbl{color:var(--accent)}
+.bnav-log{position:relative;top:-10px}
+.bnav-log .bnav-icon{background:var(--accent);color:#fff;width:48px;height:48px;border-radius:50%;box-shadow:0 4px 12px rgba(255,90,54,.4)}
+.bnav-log.on .bnav-icon{background:var(--accent-dark)}
 .empty{text-align:center;padding:24px 16px;color:var(--mu);font-size:12px;line-height:1.7;background:var(--s2);border-radius:var(--ra);border:0.5px dashed var(--fa)}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--tx);color:#fff;padding:10px 18px;border-radius:14px;font-size:12px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88%;width:max-content;text-align:center;line-height:1.4}
 .toast.show{opacity:1}
@@ -435,6 +441,40 @@ input,select,textarea{font-size:16px!important}
 
 <div class="toast" id="tst"></div>
 
+<!-- Bottom tab bar — fixed, visible on all main app screens -->
+<div class="bnav" id="bnav" style="display:none">
+  <div class="bnav-item" id="tab-home" onclick="goTab('home')">
+    <div class="bnav-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+    </div>
+    <div class="bnav-lbl">Home</div>
+  </div>
+  <div class="bnav-item" id="tab-today" onclick="goTab('today')">
+    <div class="bnav-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="2" fill="currentColor" stroke="none"/></svg>
+    </div>
+    <div class="bnav-lbl">My Day</div>
+  </div>
+  <div class="bnav-item bnav-log" id="tab-log" onclick="goTab('log')">
+    <div class="bnav-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </div>
+    <div class="bnav-lbl">Log</div>
+  </div>
+  <div class="bnav-item" id="tab-insights" onclick="goTab('insights')">
+    <div class="bnav-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    <div class="bnav-lbl">Insights</div>
+  </div>
+  <div class="bnav-item" id="tab-menu" onclick="goTab('menu')">
+    <div class="bnav-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </div>
+    <div class="bnav-lbl">More</div>
+  </div>
+</div>
+
 <!-- Barcode scanner modal — full screen overlay with live camera feed -->
 <div id="barcode-modal" style="display:none;position:fixed;inset:0;z-index:200;background:#000;flex-direction:column">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,0,0,.8)">
@@ -505,7 +545,15 @@ function isAiThrottled(minMs){
   return Date.now()-lastAiCallTime < (minMs||15000);
 }
 var AD={};
-var fMealType='Lunch',fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
+function getMealTypeByTime(){
+  var h=new Date().getHours();
+  if(h>=5&&h<11)return 'Breakfast';
+  if(h>=11&&h<16)return 'Lunch';
+  if(h>=16&&h<19)return 'Snack';
+  if(h>=19||h<2)return 'Dinner';
+  return 'Drinks'; // late night
+}
+var fMealType=getMealTypeByTime(),fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
 var fLookupResult=null;
 var fSelectedFood=null;  // {name, per100} once a search result is chosen
 var fSearchTimer=null;
@@ -573,6 +621,20 @@ function Inp(id,type,ph,val){var i=E('input');i.id=id;i.type=type||'text';if(ph)
 // swipes back (or taps the browser's own back button); goBack() still works
 // for in-app back buttons by simply calling history.back(), so both paths
 // converge on the same popstate handler instead of doing two different things.
+// Screens where the tab bar is visible
+var TAB_SCREENS=['s-cal','s-day','s-training','s-food','s-weight','s-insights','s-menu','s-myplan','s-profile','s-ai-settings'];
+// Map from screen to which tab should be active
+var TAB_ACTIVE={'s-cal':'home','s-day':'today','s-training':'log','s-food':'log','s-weight':'log','s-insights':'insights','s-menu':'menu','s-myplan':'menu','s-profile':'menu','s-ai-settings':'menu'};
+
+function setActiveTab(screenId){
+  document.querySelectorAll('.bnav-item').forEach(function(t){t.classList.remove('on');});
+  var tab=TAB_ACTIVE[screenId];
+  if(tab){
+    var el=document.getElementById('tab-'+tab);
+    if(el)el.classList.add('on');
+  }
+}
+
 function goScreen(id, opts){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   document.getElementById(id).classList.add('active');
@@ -580,7 +642,25 @@ function goScreen(id, opts){
   if(!opts||!opts.skipHistory){
     history.pushState({screen:id}, '', '#'+id);
   }
+  var bnav=document.getElementById('bnav');
+  if(bnav){
+    if(TAB_SCREENS.indexOf(id)>=0){
+      bnav.style.display='flex';
+      setActiveTab(id);
+    } else {
+      bnav.style.display='none';
+    }
+  }
 }
+
+function goTab(tab){
+  if(tab==='home'){ renderCal(); goScreen('s-cal'); }
+  else if(tab==='today'){ sd=todayKey(); renderDayView(); goScreen('s-day'); }
+  else if(tab==='log'){ sd=todayKey(); renderFoodForm(); goScreen('s-food'); }
+  else if(tab==='insights'){ goInsights(); }
+  else if(tab==='menu'){ goMenu(); }
+}
+
 function goBack(){
   // Defer to the browser's own back navigation so it's indistinguishable
   // from a swipe-back gesture — popstate below does the actual screen swap.
@@ -638,6 +718,7 @@ function renderMenu(){
 
   list.appendChild(row('home','Home',function(){ goScreen('s-cal'); renderCal(); }));
   list.appendChild(row('today','My Day',function(){ sd=todayKey(); renderDayView(); goScreen('s-day'); }));
+  list.appendChild(row('insights','Insights',function(){ goInsights(); }));
   list.appendChild(row('profile','Profile',function(){ goProfile(); }));
   list.appendChild(row('plan','Training plan',function(){ goMyPlan(); }));
   list.appendChild(row('settings','AI Settings',function(){ showSettings(); }));
@@ -919,6 +1000,11 @@ window.addEventListener('popstate', function(e){
   window.scrollTo(0,0);
   if(id==='s-day') renderDayView();
   if(id==='s-cal') renderCal();
+  var bnav=document.getElementById('bnav');
+  if(bnav){
+    if(TAB_SCREENS.indexOf(id)>=0){ bnav.style.display='flex'; setActiveTab(id); }
+    else bnav.style.display='none';
+  }
 });
 
 function daysRef(){
@@ -995,6 +1081,69 @@ function renderDayView(){
 
   var body=document.getElementById('day-body');
   body.innerHTML='';
+
+  // ── DAILY INSIGHT (top of page) ──────────────────────────────────────────
+  var hasAnyData=d.training||d.food||d.weight;
+  if(hasAnyData&&!isFutureDate(sd)){
+    var ic=D('card');
+    var ih=D('card-hdr');
+    ih.appendChild(dottedTitle('Daily Insight','var(--accent)'));
+    ic.appendChild(ih);
+    var ib=D('card-body');
+    var insightText=T('div','');
+    insightText.id='daily-insight-text';
+    insightText.style.cssText='font-size:14px;line-height:1.6;color:var(--tx);font-style:italic;padding:2px 0';
+    ib.appendChild(insightText);
+    ic.appendChild(ib);
+    body.appendChild(ic);
+    renderDailyInsight(d,insightText);
+  }
+
+  // ── QUICK WATER ──────────────────────────────────────────────────────────
+  // Water is logged many times a day — putting it in My Day saves having to
+  // open the full food form every time you refill your bottle.
+  if(!isFutureDate(sd)){
+    var wqCard=D('card');
+    var wqHdr=D('card-hdr');
+    wqHdr.appendChild(dottedTitle('Water','#3b82f6'));
+    wqCard.appendChild(wqHdr);
+    var wqBody=D('card-body');
+    var currentWater=(d.food&&d.food.water)||0;
+    var wqRow=D('');wqRow.style.cssText='display:flex;align-items:center;gap:10px';
+    var wqVal=T('div','','');
+    wqVal.style.cssText='font-size:24px;font-weight:700;color:#3b82f6;min-width:60px';
+    var wqSub=T('div','','/ '+WT+'L goal');
+    wqSub.style.cssText='font-size:11px;color:var(--mu)';
+    var wqValWrap=D('');
+    ap(wqValWrap,wqVal,wqSub);
+
+    var wqBtns=D('');wqBtns.style.cssText='display:flex;gap:6px;margin-left:auto';
+    function updateWqDisplay(w){
+      wqVal.textContent=w+'L';
+    }
+    updateWqDisplay(currentWater);
+
+    function addWater(amt){
+      var newW=Math.max(0,Math.round((currentWater+amt)*10)/10);
+      currentWater=newW;
+      updateWqDisplay(newW);
+      // Save to Firestore — merge into existing food data
+      var existing=AD[sd]||{};
+      var existingFood=existing.food||{};
+      existingFood.water=newW;
+      saveDay(sd,{food:existingFood});
+    }
+
+    [0.25,0.5,1].forEach(function(amt){
+      var b=Btn('wb','+'+amt+'L',function(){addWater(amt);});
+      wqBtns.appendChild(b);
+    });
+
+    ap(wqRow,wqValWrap,wqBtns);
+    wqBody.appendChild(wqRow);
+    wqCard.appendChild(wqBody);
+    body.appendChild(wqCard);
+  }
 
   var tc=D('card');
   var th=D('card-hdr');
@@ -1107,25 +1256,6 @@ function renderDayView(){
     wb.appendChild(T('div','text-mu','No weight logged for this day.'));
   }
   wc.appendChild(wb);body.appendChild(wc);
-
-  // Daily Insight — one sharp AI-generated sentence, cached per date so
-  // Gemini is only called once per day regardless of how many times you
-  // open My Day. Falls back gracefully if no key is configured.
-  var hasAnyData=d.training||d.food||d.weight;
-  if(hasAnyData&&!isFutureDate(sd)){
-    var ic=D('card');
-    var ih=D('card-hdr');
-    ih.appendChild(dottedTitle('Daily Insight','var(--accent)'));
-    ic.appendChild(ih);
-    var ib=D('card-body');
-    var insightText=T('div','');
-    insightText.id='daily-insight-text';
-    insightText.style.cssText='font-size:14px;line-height:1.6;color:var(--tx);font-style:italic;padding:2px 0';
-    ib.appendChild(insightText);
-    ic.appendChild(ib);
-    body.appendChild(ic);
-    renderDailyInsight(d,insightText);
-  }
 }
 
 // Cache: {date: 'YYYY-MM-DD', text: '...'}  — one entry, refreshed when
@@ -1281,7 +1411,7 @@ function renderFoodForm(){
   // separate Add-to-meal taps) into one card per meal name.
   fSavedMeals=dedupeMealsByName(fSavedMeals);
   fWater=f.water||0;fProtein=f.protein||'';fCaff=f.caffeine||0;
-  fItems=[];fLookupResult=null;fMealType='Lunch';
+  fItems=[];fLookupResult=null;fMealType=getMealTypeByTime();
   // Always recalculate from the actual logged items when a day is opened —
   // a previously saved value doesn't mean the user manually set it, since it
   // could itself have been auto-calculated in an earlier session. "Manual"
