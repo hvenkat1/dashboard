@@ -41,7 +41,7 @@ input,select,button,textarea{font-family:inherit}
 @media (min-width: 700px) {
   body{background:var(--bd);display:flex;justify-content:center}
   .topbar{max-width:480px;margin:0 auto;width:100%;border-radius:0 0 var(--ra) var(--ra)}
-  .sbody{max-width:480px;margin:0 auto;width:100%;background:var(--bg);padding:18px 18px 80px}
+  .sbody{max-width:480px;margin:0 auto;width:100%;background:var(--bg);padding:18px 18px 100px}
   .cal-card{max-width:420px;margin:0 auto 14px}
   .cal-grid{gap:4px;padding:6px 12px 14px}
   .cc{max-width:48px;justify-self:center}
@@ -63,7 +63,7 @@ input,select,button,textarea{font-family:inherit}
 .topbar-eyebrow{font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.07em;line-height:1.3;margin-bottom:1px}
 .topbar-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
 .topbar-action{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;padding:8px 6px;display:flex;align-items:center}
-.sbody{flex:1;overflow-y:auto;padding:18px 14px 80px}
+.sbody{flex:1;overflow-y:auto;padding:18px 14px 100px}
 .sbody.center{display:flex;flex-direction:column;align-items:stretch}
 .cal-card{background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);overflow:hidden;margin-bottom:10px}
 .cal-legend{display:flex;justify-content:center;gap:18px;padding:10px 14px;background:var(--sf);border-radius:var(--ra);box-shadow:var(--shadow);margin-bottom:10px}
@@ -223,7 +223,7 @@ input,select,button,textarea{font-family:inherit}
 .spinner{width:16px;height:16px;border:2px solid var(--bd);border-top-color:var(--tx);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 .divhr{height:0.5px;background:var(--bd);margin:14px 0}
-.bnav{background:var(--sf);border-top:0.5px solid var(--bd);padding:6px 0 20px;display:flex;position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:520px;margin:0 auto}
+.bnav{background:var(--sf);border-top:0.5px solid var(--bd);padding:6px 0 env(safe-area-inset-bottom,16px);display:flex;position:fixed;bottom:0;left:0;right:0;z-index:9999;max-width:520px;margin:0 auto}
 @media (min-width:700px){.bnav{left:50%;transform:translateX(-50%);right:auto;width:520px}}
 .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 0;color:var(--mu);transition:color .15s}
 .bnav-item.on{color:var(--accent)}
@@ -557,6 +557,7 @@ var fMealType=getMealTypeByTime(),fItems=[],fSavedMeals=[],fWater=0,fProtein='',
 var fLookupResult=null;
 var fSelectedFood=null;  // {name, per100} once a search result is chosen
 var fSearchTimer=null;
+var fSearchGeneration=0; // incremented on every new search; stale responses are discarded
 var fCaffManual=false, fProteinManual=false; // true once user edits these by hand
 var tStatus='plan';
 var wValue='';
@@ -1484,8 +1485,8 @@ function buildFoodForm(){
   body.appendChild(quickRow);
 
   fSelectedFood=null;
+  fSearchGeneration++; // cancel any in-flight search from previous form state
 
-  // Search row: input + camera icon inline
   var searchRow=D('');searchRow.style.cssText='display:flex;gap:8px;margin-bottom:10px;align-items:flex-start';
   var foodSearchWrap=D('');foodSearchWrap.style.cssText='position:relative;flex:1';
   var sInput=Inp('food-search-input','text','Search for a food (e.g. rice, sambar, banana)');
@@ -1900,6 +1901,8 @@ var INDIAN_DB_PER100={
 var USDA_KEY='pImtFw2c2kYUqxtwEkk6aUwJthg8TsPVbWLywiqg';
 
 function searchFoods(query,dropdown,sInput,qtyRow,addRow){
+  fSearchGeneration++; // any in-flight tier-2/3 responses from previous searches are now stale
+  var myGen=fSearchGeneration;
   dropdown.innerHTML='';
   var loading=D('food-dd-empty');loading.textContent='Searching...';
   dropdown.appendChild(loading);dropdown.style.display='block';
@@ -1927,6 +1930,7 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
   fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(query)+'&search_simple=1&action=process&json=1&page_size=6&fields=product_name,nutriments,brands')
     .then(function(r){return r.json();})
     .then(function(data){
+      if(myGen!==fSearchGeneration)return; // user already typed something new
       var results=[];
       if(data.products){
         data.products.forEach(function(p){
@@ -1944,16 +1948,20 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
       if(results.length>0){
         renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
       } else {
-        tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow);
+        tryUsdaLookup(query,myGen,dropdown,sInput,qtyRow,addRow);
       }
     })
-    .catch(function(){ tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow); });
+    .catch(function(){
+      if(myGen!==fSearchGeneration)return;
+      tryUsdaLookup(query,myGen,dropdown,sInput,qtyRow,addRow);
+    });
 }
 
 // Tier 3 — USDA FoodData Central: US government food database, strong on
 // branded products including Indian brands (Yippee, Maggi, etc.) and raw
 // ingredients with accurate nutritional data.
-function tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow){
+function tryUsdaLookup(query,gen,dropdown,sInput,qtyRow,addRow){
+  if(gen!==fSearchGeneration)return; // stale — user already typed something new
   dropdown.innerHTML='';
   var l3=D('food-dd-empty');l3.textContent='Searching USDA database...';
   dropdown.appendChild(l3);dropdown.style.display='block';
@@ -1962,6 +1970,7 @@ function tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow){
   fetch(url)
     .then(function(r){return r.json();})
     .then(function(data){
+      if(gen!==fSearchGeneration)return; // stale
       var results=[];
       if(data.foods){
         data.foods.forEach(function(f){
@@ -1987,10 +1996,13 @@ function tryUsdaLookup(query,dropdown,sInput,qtyRow,addRow){
       if(results.length>0){
         renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
       } else {
-        tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow);
+        tryAiFoodLookup(query,gen,dropdown,sInput,qtyRow,addRow);
       }
     })
-    .catch(function(){ tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow); });
+    .catch(function(){
+      if(gen!==fSearchGeneration)return;
+      tryAiFoodLookup(query,gen,dropdown,sInput,qtyRow,addRow);
+    });
 }
 
 // ── BARCODE SCANNER ──────────────────────────────────────────────────────
@@ -2064,54 +2076,104 @@ function lookupBarcode(barcode,resultArea,qtyRow,addRow,sInput,dropdown){
   fetch('https://world.openfoodfacts.org/api/v0/product/'+barcode+'.json')
     .then(function(r){return r.json();})
     .then(function(data){
+      if(data.product&&data.status!==0){
+        showBarcodeResult(data.product,resultArea,qtyRow,addRow,sInput,dropdown);
+      } else {
+        // OFF didn't find it — try USDA by barcode (GTIN/UPC lookup)
+        barcodeUsdaFallback(barcode,resultArea,qtyRow,addRow,sInput,dropdown);
+      }
+    })
+    .catch(function(){
+      barcodeUsdaFallback(barcode,resultArea,qtyRow,addRow,sInput,dropdown);
+    });
+}
+
+function barcodeUsdaFallback(barcode,resultArea,qtyRow,addRow,sInput,dropdown){
+  resultArea.innerHTML='';
+  var loading=D('loading');
+  loading.appendChild(D('spinner'));
+  loading.appendChild(T('span','','Trying USDA database...'));
+  resultArea.appendChild(loading);
+
+  // USDA supports GTIN/UPC barcode search via the gtinUpc filter
+  var url='https://api.nal.usda.gov/fdc/v1/foods/search?query='+barcode+'&api_key='+USDA_KEY+'&pageSize=3';
+  fetch(url)
+    .then(function(r){return r.json();})
+    .then(function(data){
       resultArea.innerHTML='';
-      if(!data.product||data.status===0){
-        var notFound=T('div','','Product not found in Open Food Facts. Try searching by name instead.');
+      var foods=data.foods&&data.foods.filter(function(f){
+        // Match by GTIN/UPC if available, otherwise take top result
+        return f.gtinUpc===barcode||f.upc===barcode;
+      });
+      // If no exact barcode match, fall back to first result
+      if(!foods||!foods.length) foods=data.foods&&data.foods.slice(0,1);
+      if(!foods||!foods.length){
+        var notFound=T('div','','Not found in Open Food Facts or USDA. Try searching by name instead.');
         notFound.style.cssText='font-size:12px;color:var(--mu);padding:10px 0';
         resultArea.appendChild(notFound);
         return;
       }
-      var p=data.product;
-      var n=p.nutriments||{};
-      var kcal=n['energy-kcal_100g']||(n['energy_100g']?n['energy_100g']/4.184:0);
-      var name=p.product_name||(p.brands?p.brands+' product':'Unknown product');
-      var brand=p.brands?p.brands.split(',')[0]:'';
-      if(brand&&!name.includes(brand))name+=' ('+brand+')';
-
-      // Populate the search field with the product name and trigger the
-      // standard search flow — this ensures the qty+unit row appears
-      sInput.value=name;
-      fSelectedFood={
-        name:name,
-        source:'Barcode scan',
-        per100:{
-          k:Math.round(kcal||0),
-          p:n['proteins_100g']||0,
-          c:n['carbohydrates_100g']||0,
-          fat:n['fat_100g']||0,
-          kind:'g'
-        }
+      var f=foods[0];
+      var nutrients=f.foodNutrients||[];
+      function getNutrient(name){
+        var n=nutrients.find(function(x){return x.nutrientName&&x.nutrientName.toLowerCase().indexOf(name)>=0;});
+        return n?n.value:0;
+      }
+      var kcal=getNutrient('energy')||0;
+      var name=f.description+(f.brandName?' ('+f.brandName+')':'');
+      // Build a fake product object matching showBarcodeResult's expected format
+      var fakeProduct={
+        product_name:name,
+        brands:f.brandName||'',
+        nutriments:{
+          'energy-kcal_100g':Math.round(kcal),
+          'proteins_100g':Math.round(getNutrient('protein')*10)/10,
+          'carbohydrates_100g':Math.round(getNutrient('carbohydrate')*10)/10,
+          'fat_100g':Math.round((getNutrient('total lipid')||getNutrient('fat'))*10)/10
+        },
+        _source:'USDA'
       };
-      // Show a confirmation card + immediately reveal the qty fields
-      var card=D('lookup-result');
-      var nameRow=D('row-flex');
-      nameRow.appendChild(T('div','lr-name',name));
-      nameRow.appendChild(T('div','badge b-plan',Math.round(kcal||0)+' kcal/100g'));
-      card.appendChild(nameRow);
-      card.appendChild(T('div','lr-detail','P:'+Math.round(n['proteins_100g']||0)+'g  C:'+Math.round(n['carbohydrates_100g']||0)+'g  F:'+Math.round(n['fat_100g']||0)+'g per 100g'));
-      resultArea.appendChild(card);
-      // Show the qty+unit row so user can enter how much they had
-      if(qtyRow)qtyRow.style.display='grid';
-      if(addRow)addRow.style.display='block';
-      var qtyIn=document.getElementById('food-qty-input');
-      var unitSel=document.getElementById('food-unit-select');
-      if(unitSel)unitSel.value='g';
-      if(qtyIn)setTimeout(function(){qtyIn.focus();},100);
+      showBarcodeResult(fakeProduct,resultArea,qtyRow,addRow,sInput,dropdown);
     })
     .catch(function(){
       resultArea.innerHTML='';
-      resultArea.appendChild(T('div','','Barcode lookup failed — check your connection.'));
+      resultArea.appendChild(T('div','','Barcode lookup failed — try searching by name instead.'));
     });
+}
+
+function showBarcodeResult(p,resultArea,qtyRow,addRow,sInput,dropdown){
+  var n=p.nutriments||{};
+  var kcal=n['energy-kcal_100g']||(n['energy_100g']?n['energy_100g']/4.184:0);
+  var name=p.product_name||(p.brands?p.brands+' product':'Unknown product');
+  var brand=p.brands?p.brands.split(',')[0]:'';
+  if(brand&&!name.toLowerCase().includes(brand.toLowerCase()))name+=' ('+brand+')';
+  var source=p._source||'Barcode scan';
+
+  sInput.value=name;
+  fSelectedFood={
+    name:name,
+    source:source,
+    per100:{
+      k:Math.round(kcal||0),
+      p:n['proteins_100g']||0,
+      c:n['carbohydrates_100g']||0,
+      fat:n['fat_100g']||0,
+      kind:'g'
+    }
+  };
+  var card=D('lookup-result');
+  var nameRow=D('row-flex');
+  nameRow.appendChild(T('div','lr-name',name));
+  nameRow.appendChild(T('div','badge b-plan',Math.round(kcal||0)+' kcal/100g · '+source));
+  card.appendChild(nameRow);
+  card.appendChild(T('div','lr-detail','P:'+Math.round(n['proteins_100g']||0)+'g  C:'+Math.round(n['carbohydrates_100g']||0)+'g  F:'+Math.round(n['fat_100g']||0)+'g per 100g'));
+  resultArea.appendChild(card);
+  if(qtyRow)qtyRow.style.display='grid';
+  if(addRow)addRow.style.display='block';
+  var qtyIn=document.getElementById('food-qty-input');
+  var unitSel=document.getElementById('food-unit-select');
+  if(unitSel)unitSel.value='g';
+  if(qtyIn)setTimeout(function(){qtyIn.focus();},100);
 }
 
 // Photo food logging — reads the image file, converts to base64, and sends
@@ -2236,15 +2298,14 @@ function handleFoodPhoto(file, resultArea, qtyRow, addRow, sInput, dropdown){
   reader.readAsDataURL(file);
 }
 
-function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
+function tryAiFoodLookup(query,gen,dropdown,sInput,qtyRow,addRow){
+  if(gen!==fSearchGeneration)return; // stale — user already typed something new
   var key=aiKeys[aiProvider];
   if(!key){
     renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     return;
   }
   if(isAiThrottled(8000)){
-    // Throttled — show empty dropdown rather than an error, since the user
-    // can just wait a moment and search again.
     renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     return;
   }
@@ -2264,6 +2325,7 @@ function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
   fetch(req.url,{method:'POST',headers:req.headers,body:JSON.stringify(req.body)})
     .then(function(r){return r.json();})
     .then(function(data){
+      if(gen!==fSearchGeneration)return; // stale — user already typed something new
       var text=extractAiText(aiProvider,data);
       if(!text){renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);return;}
       var clean=text.replace(/```json|```/g,'').trim();
@@ -2283,6 +2345,7 @@ function tryAiFoodLookup(query,dropdown,sInput,qtyRow,addRow){
       renderFoodDropdown(result,dropdown,sInput,qtyRow,addRow);
     })
     .catch(function(){
+      if(gen!==fSearchGeneration)return;
       renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     });
 }
