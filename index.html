@@ -1123,7 +1123,9 @@ function renderDayView(){
     updateWqDisplay(currentWater);
 
     function addWater(amt){
-      var newW=Math.max(0,Math.round((currentWater+amt)*10)/10);
+      // Avoid floating point drift by converting to integers (×100),
+      // adding, then converting back. 0.25+0.25+0.25 = 75/100 = 0.75 exactly.
+      var newW=Math.max(0,(Math.round(currentWater*100)+Math.round(amt*100))/100);
       currentWater=newW;
       updateWqDisplay(newW);
       // Save to Firestore — merge into existing food data
@@ -1456,12 +1458,14 @@ function buildFoodForm(){
     var totalKcal=fSavedMeals.reduce(function(a,m){return a+(m.kcal||0);},0);
     var summaryCard=D('card');summaryCard.style.marginBottom='12px';
     var summaryHdr=D('card-hdr');
-    var summaryTitle=D('row-flex');
-    summaryTitle.appendChild(T('div','card-title','Today so far'));
-    var kcalBadge=T('div','','');
-    kcalBadge.style.cssText='font-size:18px;font-weight:800;color:var(--accent)';
-    kcalBadge.textContent=totalKcal+' kcal';
-    summaryTitle.appendChild(kcalBadge);
+    var summaryTitle=D('');
+    summaryTitle.style.cssText='display:flex;flex-direction:column;gap:2px';
+    var sofarLbl=T('div','card-title','Today so far');
+    var sofarKcal=T('div','','');
+    sofarKcal.style.cssText='font-size:22px;font-weight:800;color:var(--accent)';
+    sofarKcal.textContent=totalKcal+' kcal';
+    summaryTitle.appendChild(sofarLbl);
+    summaryTitle.appendChild(sofarKcal);
     summaryHdr.appendChild(summaryTitle);
     summaryCard.appendChild(summaryHdr);
     var summaryBody=D('card-body');
@@ -1639,7 +1643,7 @@ function buildFoodForm(){
       var mn=D('mi-n');mn.textContent=it.n+(it.p?' (P:'+Math.round(it.p)+'g C:'+Math.round(it.c||0)+'g F:'+Math.round(it.fat||0)+'g)':'');
       var mk=T('span','mi-k',it.k+' kcal');
       // Edit button — pencil icon
-      var editBtn=Btn('mi-del','✎',(function(idx,wrp){
+      var editBtn=Btn('mi-del','Edit',(function(idx,wrp){
         return function(){
           // Toggle inline edit row
           var existing=wrp.querySelector('.item-edit-row');
@@ -1681,7 +1685,7 @@ function buildFoodForm(){
           setTimeout(function(){qIn.focus();qIn.select();},50);
         };
       })(i,wrapper));
-      editBtn.style.cssText='background:var(--s2);color:var(--mu);margin-right:2px;font-size:13px';
+      editBtn.style.cssText='background:none;border:none;cursor:pointer;padding:0 6px 0 8px;font-size:13px;color:var(--bl)';
       var del=Btn('mi-del','✕',function(){fItems.splice(i,1);buildFoodForm();});
       ap(mi,mn,mk,editBtn,del);
       wrapper.appendChild(mi);
