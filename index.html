@@ -1740,16 +1740,57 @@ function buildFoodForm(){
       if(m.items&&m.items.length){
         var mb=D('meal-body');
         m.items.forEach(function(it,ii){
+          var wrapper=D('');
           var miEl=D('mi');
           var mn=T('span','mi-n',it.n);
           if(it.p||it.c||it.fat)mn.textContent+=(' (P:'+Math.round(it.p||0)+'g C:'+Math.round(it.c||0)+'g F:'+Math.round(it.fat||0)+'g)');
           var mk=T('span','mi-k',it.k+' kcal');
-          var delBtn=Btn('mi-del','x',(function(mIdx,iIdx){
+          var editBtn=Btn('mi-edit','Edit',(function(mIdx,iIdx,wrp){
+            return function(){
+              var existing=wrp.querySelector('.item-edit-row');
+              if(existing){wrp.removeChild(existing);return;}
+              var editRow=D('item-edit-row');
+              editRow.style.cssText='display:grid;grid-template-columns:1fr auto auto;gap:6px;padding:6px 0;align-items:center';
+              var qIn=E('input','');qIn.type='number';qIn.min='0.1';qIn.step='1';
+              qIn.value=fSavedMeals[mIdx].items[iIdx]._qty||'';
+              qIn.style.cssText='padding:7px 10px;border:1.5px solid var(--accent);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);width:80px';
+              var uSel=E('select','');
+              [['g','g'],['ml','ml'],['piece','pc'],['kg','kg'],['l','L']].forEach(function(opt){
+                var o=E('option');o.value=opt[0];o.textContent=opt[1];uSel.appendChild(o);
+              });
+              uSel.value=fSavedMeals[mIdx].items[iIdx]._unit||'g';
+              uSel.style.cssText='padding:7px 8px;border:1.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx)';
+              var saveEdit=Btn('btn-green','✓',function(){
+                var newQty=parseFloat(qIn.value);
+                if(!newQty||newQty<=0){showToast('Enter a valid quantity');return;}
+                var newUnit=uSel.value;
+                var per100=fSavedMeals[mIdx].items[iIdx]._per100||{k:0,p:0,c:0,fat:0};
+                var baseQty=unitToGramsOrMl(newQty,newUnit,per100);
+                var ratio=baseQty/100;
+                var unitLabel=newUnit==='kg'?'kg':newUnit==='l'?'L':newUnit==='piece'?(newQty===1?'piece':'pieces'):newUnit;
+                var foodName=fSavedMeals[mIdx].items[iIdx]._foodName||fSavedMeals[mIdx].items[iIdx].n.replace(/ \(.*\)$/,'');
+                fSavedMeals[mIdx].items[iIdx]={
+                  n:foodName+' ('+newQty+' '+unitLabel+')',
+                  k:Math.round(per100.k*ratio),
+                  p:Math.round(per100.p*ratio*10)/10,
+                  c:Math.round(per100.c*ratio*10)/10,
+                  fat:Math.round(per100.fat*ratio*10)/10,
+                  caff:Math.round((per100.caff||0)*ratio),
+                  _per100:per100,_qty:newQty,_unit:newUnit,_foodName:foodName
+                };
+                fSavedMeals[mIdx].kcal=fSavedMeals[mIdx].items.reduce(function(a,x){return a+(x.k||0);},0);
+                saveAllFood(false);
+              });
+              saveEdit.style.cssText='padding:7px 12px;font-size:14px';
+              ap(editRow,qIn,uSel,saveEdit);
+              wrp.appendChild(editRow);
+              setTimeout(function(){qIn.focus();qIn.select();},50);
+            };
+          })(mi,ii,wrapper));
+          var delBtn=Btn('mi-del','✕',(function(mIdx,iIdx){
             return function(){
               fSavedMeals[mIdx].items.splice(iIdx,1);
               if(fSavedMeals[mIdx].items.length===0){
-                // No items left in this meal — remove the empty meal too
-                // rather than leaving a zero-item meal card behind.
                 fSavedMeals.splice(mIdx,1);
               } else {
                 fSavedMeals[mIdx].kcal=fSavedMeals[mIdx].items.reduce(function(a,x){return a+(x.k||0);},0);
@@ -1757,7 +1798,9 @@ function buildFoodForm(){
               saveAllFood(false);
             };
           })(mi,ii));
-          ap(miEl,mn,mk,delBtn);mb.appendChild(miEl);
+          ap(miEl,mn,mk,editBtn,delBtn);
+          wrapper.appendChild(miEl);
+          mb.appendChild(wrapper);
         });
         mv.appendChild(mb);
       }
