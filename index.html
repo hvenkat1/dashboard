@@ -2204,9 +2204,10 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
     var exactOrPrefix=ql===key||ql.startsWith(key+' ')||key.startsWith(ql);
     // Match if key contains query (user typed part of a multi-word food name)
     var keyContainsQuery=key.indexOf(ql)>=0;
-    // Only match "query contains key" when the query isn't much longer than the key
-    // — prevents "potato" matching "srilankan potato curry" (3 words vs 1 word)
-    var queryContainsKey=ql.indexOf(key)>=0&&queryWordCount<=keyWords+1;
+    // Only match "query contains key" when the query is not longer than the key
+    // — prevents "potato curry" matching "srilankan potato curry" (key is a
+    // subset of a more specific dish the user is searching for).
+    var queryContainsKey=ql.indexOf(key)>=0&&queryWordCount<=keyWords;
     if(exactOrPrefix||keyContainsQuery||queryContainsKey){
       localResults.push({name:key.charAt(0).toUpperCase()+key.slice(1),source:'Common foods',per100:INDIAN_DB_PER100[key]});
     }
