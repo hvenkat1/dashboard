@@ -2338,6 +2338,7 @@ function handleFoodPhoto(file, resultArea, qtyRow, addRow, sInput, dropdown){
           return;
         }
         var clean=text.replace(/```json|```/g,'').trim();
+        console.log('Photo AI raw response:', clean); // debug — helps trace field name variants
         var items;
         try{items=JSON.parse(clean);}catch(e){
           resultArea.appendChild(T('div','','Couldn\'t parse the response — try again or search manually.'));
@@ -2347,42 +2348,95 @@ function handleFoodPhoto(file, resultArea, qtyRow, addRow, sInput, dropdown){
           resultArea.appendChild(T('div','','No foods detected — try a clearer photo or search manually.'));
           return;
         }
-        // Show each detected item as a card the user can tap to add
+        // Show all detected items together — editable quantity, individual
+        // add buttons that mark items as added without wiping other results,
+        // and an "Add all" button at the bottom for the common case.
         var header=T('div','slbl','Detected in your photo');
         header.style.marginTop='4px';
         resultArea.appendChild(header);
-        items.forEach(function(item){
+
+        // Build a normalized array first so Add all can reference them
+        var photoItems=items.map(function(item){
+          return {
+            name:item.name,
+            qty_g:+(item.quantity_g||item.quantity||100)||100,
+            kcal100:+(item.kcal_per_100||item.calories_per_100||item.energy_per_100||item.kcal||0)||0,
+            prot100:+(item.protein_per_100||item.protein||0)||0,
+            carb100:+(item.carbs_per_100||item.carbohydrates_per_100||item.carbohydrates||item.carbs||0)||0,
+            fat100:+(item.fat_per_100||item.fat||0)||0
+          };
+        });
+
+        var addBtns=[];
+        var qtyInputs=[];
+
+        photoItems.forEach(function(pi,idx){
           var card=D('lookup-result');
-          card.style.cursor='pointer';
+          card.style.marginBottom='8px';
+
+          // Name row
           var nameRow=D('row-flex');
-          nameRow.appendChild(T('div','lr-name',item.name));
-          var est=T('div','badge b-plan','~'+item.quantity_g+'g · '+Math.round((item.kcal_per_100||0)*item.quantity_g/100)+' kcal est.');
-          nameRow.appendChild(est);
+          nameRow.appendChild(T('div','lr-name',pi.name));
           card.appendChild(nameRow);
-          var macros=T('div','lr-detail','P:'+Math.round((item.protein_per_100||0)*item.quantity_g/100)+'g  C:'+Math.round((item.carbs_per_100||0)*item.quantity_g/100)+'g  F:'+Math.round((item.fat_per_100||0)*item.quantity_g/100)+'g');
-          card.appendChild(macros);
-          var actions=D('lr-actions');
-          var addBtn=Btn('btn-green','Add to meal',(function(it){
-            return function(){
-              var ratio=it.quantity_g/100;
-              fItems.push({
-                n:it.name+' (~'+it.quantity_g+'g)',
-                k:Math.round((it.kcal_per_100||0)*ratio),
-                p:Math.round((it.protein_per_100||0)*ratio*10)/10,
-                c:Math.round((it.carbs_per_100||0)*ratio*10)/10,
-                fat:Math.round((it.fat_per_100||0)*ratio*10)/10,
-                caff:0
-              });
-              card.style.opacity='0.4';
-              addBtn.textContent='Added ✓';
-              addBtn.disabled=true;
-              buildFoodForm();
-            };
-          })(item));
-          actions.appendChild(addBtn);
-          card.appendChild(actions);
+
+          // Editable quantity row
+          var qRow=D('');qRow.style.cssText='display:flex;align-items:center;gap:8px;margin:6px 0 4px';
+          var qIn=E('input','');
+          qIn.type='number';qIn.min='1';qIn.step='5';qIn.value=pi.qty_g;
+          qIn.style.cssText='width:72px;padding:5px 8px;border:1px solid var(--bd);border-radius:7px;font-size:13px;background:var(--bg);color:var(--tx)';
+          var qLbl=T('span','','g');qLbl.style.cssText='font-size:12px;color:var(--mu)';
+          var kcalDisplay=T('span','','');
+          kcalDisplay.style.cssText='font-size:12px;color:var(--mu);margin-left:4px';
+          function updateKcalDisplay(){
+            var q=parseFloat(qIn.value)||0;
+            kcalDisplay.textContent='≈ '+Math.round(pi.kcal100*q/100)+' kcal · P:'+Math.round(pi.prot100*q/100)+'g C:'+Math.round(pi.carb100*q/100)+'g F:'+Math.round(pi.fat100*q/100)+'g';
+          }
+          updateKcalDisplay();
+          qIn.addEventListener('input',updateKcalDisplay);
+          ap(qRow,qIn,qLbl,kcalDisplay);
+          card.appendChild(qRow);
+          qtyInputs.push(qIn);
+
+          // Add button — marks this card as added inline, no page rebuild
+          var addBtn=Btn('btn-green','Add to meal',function(){
+            if(addBtn.disabled)return;
+            var q=parseFloat(qIn.value)||pi.qty_g;
+            var ratio=q/100;
+            fItems.push({
+              n:pi.name+' (~'+q+'g)',
+              k:Math.round(pi.kcal100*ratio),
+              p:Math.round(pi.prot100*ratio*10)/10,
+              c:Math.round(pi.carb100*ratio*10)/10,
+              fat:Math.round(pi.fat100*ratio*10)/10,
+              caff:0,
+              _per100:{k:pi.kcal100,p:pi.prot100,c:pi.carb100,fat:pi.fat100},
+              _qty:q,_unit:'g',_foodName:pi.name
+            });
+            addBtn.textContent='Added ✓';
+            addBtn.disabled=true;
+            addBtn.style.cssText='opacity:0.5;cursor:default';
+            card.style.background='var(--gbg)';
+          });
+          addBtns.push(addBtn);
+          card.appendChild(addBtn);
           resultArea.appendChild(card);
         });
+
+        // Add all remaining button
+        if(photoItems.length>1){
+          var addAllBtn=Btn('btn','Add all to meal',function(){
+            addBtns.forEach(function(b,i){
+              if(!b.disabled){b.click();}
+            });
+            addAllBtn.textContent='All added ✓';
+            addAllBtn.disabled=true;
+            // Now rebuild the form to show the items in the meal
+            setTimeout(function(){buildFoodForm();},300);
+          });
+          addAllBtn.style.marginTop='6px';
+          resultArea.appendChild(addAllBtn);
+        }
+
         markAiCallTime();
       })
       .catch(function(){
