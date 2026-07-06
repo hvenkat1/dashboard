@@ -319,7 +319,6 @@ input,select,textarea{font-size:16px!important}
 
 <div class="screen" id="s-cal">
   <div class="topbar">
-    <button class="topbar-back" id="menu-btn" title="Menu" aria-label="Open menu">&#9776;</button>
     <div style="flex:1;min-width:0">
       <div class="topbar-eyebrow">Forma</div>
       <div class="topbar-title">Overview</div>
@@ -357,7 +356,6 @@ input,select,textarea{font-size:16px!important}
 
 <div class="screen" id="s-day">
   <div class="topbar">
-    <button class="topbar-back" id="day-menu-btn" title="Menu" aria-label="Open menu">&#9776;</button>
     <div style="flex:1;min-width:0">
       <div class="topbar-eyebrow">My Day</div>
       <div class="topbar-title" id="day-title"></div>
@@ -1452,6 +1450,43 @@ function buildFoodForm(){
     return;
   }
 
+  // Today's summary — compact view of what's already logged, shown at the
+  // top so you don't have to scroll past the add-food section to see it.
+  if(fSavedMeals.length>0){
+    var totalKcal=fSavedMeals.reduce(function(a,m){return a+(m.kcal||0);},0);
+    var summaryCard=D('card');summaryCard.style.marginBottom='12px';
+    var summaryHdr=D('card-hdr');
+    var summaryTitle=D('row-flex');
+    summaryTitle.appendChild(T('div','card-title','Today so far'));
+    var kcalBadge=T('div','','');
+    kcalBadge.style.cssText='font-size:18px;font-weight:800;color:var(--accent)';
+    kcalBadge.textContent=totalKcal+' kcal';
+    summaryTitle.appendChild(kcalBadge);
+    summaryHdr.appendChild(summaryTitle);
+    summaryCard.appendChild(summaryHdr);
+    var summaryBody=D('card-body');
+    fSavedMeals.forEach(function(m){
+      var mrow=D('');mrow.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bd)';
+      var mlbl=T('span','',m.name||'Meal');mlbl.style.cssText='font-size:13px;font-weight:600;color:var(--tx)';
+      var mkcal=T('span','',(m.kcal||0)+' kcal');mkcal.style.cssText='font-size:12px;color:var(--mu)';
+      mrow.appendChild(mlbl);mrow.appendChild(mkcal);
+      summaryBody.appendChild(mrow);
+    });
+    // Target progress bar
+    var pct=Math.min(100,Math.round(totalKcal/KT*100));
+    var pbar=D('');pbar.style.cssText='margin-top:10px';
+    var pbarlbl=D('');pbarlbl.style.cssText='display:flex;justify-content:space-between;font-size:10px;color:var(--mu);margin-bottom:3px';
+    pbarlbl.appendChild(T('span','','vs '+KT+' kcal target'));
+    pbarlbl.appendChild(T('span','',pct+'%'));
+    var ptrack=D('');ptrack.style.cssText='height:5px;background:var(--bd);border-radius:3px;overflow:hidden';
+    var pfill=D('');pfill.style.cssText='height:100%;width:'+pct+'%;background:'+(pct>=100?'var(--gr)':pct>=70?'var(--am)':'var(--accent)')+';border-radius:3px';
+    ptrack.appendChild(pfill);
+    pbar.appendChild(pbarlbl);pbar.appendChild(ptrack);
+    summaryBody.appendChild(pbar);
+    summaryCard.appendChild(summaryBody);
+    body.appendChild(summaryCard);
+  }
+
   body.appendChild(T('div','slbl','Meal type'));
   var mtRow=D('meal-type-row');
   ['Breakfast','Lunch','Dinner','Snack','Drinks'].forEach(function(mt){
@@ -1557,11 +1592,24 @@ function buildFoodForm(){
   var qtyRow=D('qty-unit-row');qtyRow.style.display='none';
   var qtyIn=Inp('food-qty-input','number','Quantity, e.g. 200');
   var unitSel=E('select','qty-unit-select');unitSel.id='food-unit-select';
-  [['g','grams (g)'],['kg','kilograms (kg)'],['ml','millilitres (ml)'],['l','litres (l)']].forEach(function(opt){
+  [['g','grams (g)'],['kg','kilograms (kg)'],['ml','millilitres (ml)'],['l','litres (l)'],['piece','piece(s)']].forEach(function(opt){
     var o=E('option');o.value=opt[0];o.textContent=opt[1];unitSel.appendChild(o);
+  });
+  // Show a hint when piece is selected so user knows the assumed weight
+  var pieceHint=T('div','','');
+  pieceHint.style.cssText='font-size:10px;color:var(--mu);margin-top:3px;display:none';
+  unitSel.addEventListener('change',function(){
+    if(unitSel.value==='piece'&&fSelectedFood){
+      var pg=fSelectedFood.per100&&fSelectedFood.per100.piece_g;
+      pieceHint.textContent=pg?'1 piece = ~'+pg+'g':'1 piece = estimated weight from database';
+      pieceHint.style.display='block';
+    } else {
+      pieceHint.style.display='none';
+    }
   });
   ap(qtyRow,qtyIn,unitSel);
   body.appendChild(qtyRow);
+  body.appendChild(pieceHint);
 
   var addRow=D('');addRow.style.cssText='display:none;margin-top:8px';
   var addToMealBtn=Btn('btn-green','Add to meal',function(){
@@ -1586,11 +1634,58 @@ function buildFoodForm(){
     body.appendChild(T('div','slbl','Items in this meal'));
     var itemsDiv=D('');itemsDiv.id='items-div';
     fItems.forEach(function(it,i){
+      var wrapper=D('');
       var mi=D('mi');
       var mn=D('mi-n');mn.textContent=it.n+(it.p?' (P:'+Math.round(it.p)+'g C:'+Math.round(it.c||0)+'g F:'+Math.round(it.fat||0)+'g)':'');
       var mk=T('span','mi-k',it.k+' kcal');
-      var del=Btn('mi-del','x',function(){fItems.splice(i,1);buildFoodForm();});
-      ap(mi,mn,mk,del);itemsDiv.appendChild(mi);
+      // Edit button — pencil icon
+      var editBtn=Btn('mi-del','✎',(function(idx,wrp){
+        return function(){
+          // Toggle inline edit row
+          var existing=wrp.querySelector('.item-edit-row');
+          if(existing){wrp.removeChild(existing);return;}
+          var editRow=D('item-edit-row');
+          editRow.style.cssText='display:grid;grid-template-columns:1fr auto auto;gap:6px;padding:6px 0;align-items:center';
+          var qIn=E('input','');qIn.type='number';qIn.min='0.1';qIn.step='0.1';
+          qIn.value=fItems[idx]._qty||'';
+          qIn.style.cssText='padding:7px 10px;border:1.5px solid var(--accent);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);width:80px';
+          var uSel=E('select','');
+          [['g','g'],['ml','ml'],['piece','pc'],['kg','kg'],['l','L']].forEach(function(opt){
+            var o=E('option');o.value=opt[0];o.textContent=opt[1];uSel.appendChild(o);
+          });
+          uSel.value=fItems[idx]._unit||'g';
+          uSel.style.cssText='padding:7px 8px;border:1.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx)';
+          var saveEdit=Btn('btn-green','✓',function(){
+            var newQty=parseFloat(qIn.value);
+            if(!newQty||newQty<=0){showToast('Enter a valid quantity');return;}
+            var newUnit=uSel.value;
+            var per100=fItems[idx]._per100||{k:0,p:0,c:0,fat:0,caff:0};
+            var baseQty=unitToGramsOrMl(newQty,newUnit,per100);
+            var ratio=baseQty/100;
+            var unitLabel=newUnit==='kg'?'kg':newUnit==='l'?'L':newUnit==='piece'?(newQty===1?'piece':'pieces'):newUnit;
+            var foodName=fItems[idx]._foodName||fItems[idx].n.replace(/ \(.*\)$/,'');
+            fItems[idx]={
+              n:foodName+' ('+newQty+' '+unitLabel+')',
+              k:Math.round(per100.k*ratio),
+              p:Math.round(per100.p*ratio*10)/10,
+              c:Math.round(per100.c*ratio*10)/10,
+              fat:Math.round(per100.fat*ratio*10)/10,
+              caff:Math.round((per100.caff||0)*ratio),
+              _per100:per100,_qty:newQty,_unit:newUnit,_foodName:foodName
+            };
+            buildFoodForm();
+          });
+          saveEdit.style.cssText='padding:7px 12px;font-size:14px';
+          ap(editRow,qIn,uSel,saveEdit);
+          wrp.appendChild(editRow);
+          setTimeout(function(){qIn.focus();qIn.select();},50);
+        };
+      })(i,wrapper));
+      editBtn.style.cssText='background:var(--s2);color:var(--mu);margin-right:2px;font-size:13px';
+      var del=Btn('mi-del','✕',function(){fItems.splice(i,1);buildFoodForm();});
+      ap(mi,mn,mk,editBtn,del);
+      wrapper.appendChild(mi);
+      itemsDiv.appendChild(wrapper);
     });
     body.appendChild(itemsDiv);
     var totalRow=D('row-flex');totalRow.style.cssText='padding:8px 0;border-top:0.5px solid var(--bd);margin-bottom:4px';
@@ -1731,30 +1826,30 @@ var INDIAN_DB_PER100={
   'biryani egg':{k:195,p:8,c:27,fat:6,kind:'g'},
   'hyderabadi biryani':{k:188,p:5,c:30,fat:5.5,kind:'g'},
   // South Indian breakfast
-  'idli':{k:80,p:2.5,c:16,fat:0.6,kind:'g'},
-  'dosa':{k:168,p:4,c:30,fat:4,kind:'g'},
-  'masala dosa':{k:220,p:5,c:36,fat:7,kind:'g'},
-  'rava dosa':{k:175,p:4,c:28,fat:5,kind:'g'},
-  'set dosa':{k:160,p:4,c:28,fat:4,kind:'g'},
-  'uttapam':{k:165,p:4,c:28,fat:4,kind:'g'},
+  'idli':{k:80,p:2.5,c:16,fat:0.6,kind:'g',piece_g:80},
+  'dosa':{k:168,p:4,c:30,fat:4,kind:'g',piece_g:100},
+  'masala dosa':{k:220,p:5,c:36,fat:7,kind:'g',piece_g:150},
+  'rava dosa':{k:175,p:4,c:28,fat:5,kind:'g',piece_g:100},
+  'set dosa':{k:160,p:4,c:28,fat:4,kind:'g',piece_g:80},
+  'uttapam':{k:165,p:4,c:28,fat:4,kind:'g',piece_g:100},
   'upma':{k:130,p:3,c:23,fat:3.5,kind:'g'},
   'pongal':{k:150,p:4,c:26,fat:4,kind:'g'},
-  'vada':{k:280,p:8,c:30,fat:14,kind:'g'},
-  'medu vada':{k:280,p:8,c:30,fat:14,kind:'g'},
-  'pesarattu':{k:150,p:8,c:22,fat:4,kind:'g'},
-  'appam':{k:155,p:3,c:28,fat:3,kind:'g'},
+  'vada':{k:280,p:8,c:30,fat:14,kind:'g',piece_g:50},
+  'medu vada':{k:280,p:8,c:30,fat:14,kind:'g',piece_g:50},
+  'pesarattu':{k:150,p:8,c:22,fat:4,kind:'g',piece_g:80},
+  'appam':{k:155,p:3,c:28,fat:3,kind:'g',piece_g:60},
   'puttu':{k:160,p:3,c:35,fat:1,kind:'g'},
   // North Indian breads
-  'chapati':{k:280,p:9,c:48,fat:5,kind:'g'},
-  'roti':{k:297,p:11,c:50,fat:6,kind:'g'},
-  'phulka':{k:260,p:9,c:46,fat:3,kind:'g'},
-  'parotta':{k:330,p:7,c:50,fat:11,kind:'g'},
-  'naan':{k:310,p:9,c:50,fat:8,kind:'g'},
-  'butter naan':{k:340,p:9,c:48,fat:13,kind:'g'},
-  'garlic naan':{k:330,p:9,c:50,fat:11,kind:'g'},
-  'puri':{k:330,p:6,c:42,fat:16,kind:'g'},
+  'chapati':{k:280,p:9,c:48,fat:5,kind:'g',piece_g:30},
+  'roti':{k:297,p:11,c:50,fat:6,kind:'g',piece_g:30},
+  'phulka':{k:260,p:9,c:46,fat:3,kind:'g',piece_g:25},
+  'parotta':{k:330,p:7,c:50,fat:11,kind:'g',piece_g:100},
+  'naan':{k:310,p:9,c:50,fat:8,kind:'g',piece_g:90},
+  'butter naan':{k:340,p:9,c:48,fat:13,kind:'g',piece_g:90},
+  'garlic naan':{k:330,p:9,c:50,fat:11,kind:'g',piece_g:90},
+  'puri':{k:330,p:6,c:42,fat:16,kind:'g',piece_g:30},
   'bhatura':{k:340,p:8,c:45,fat:14,kind:'g'},
-  'paratha':{k:320,p:7,c:45,fat:12,kind:'g'},
+  'paratha':{k:320,p:7,c:45,fat:12,kind:'g',piece_g:80},
   'aloo paratha':{k:280,p:6,c:38,fat:11,kind:'g'},
   // Lentils & curries
   'dal':{k:120,p:8,c:18,fat:2,kind:'g'},
@@ -1825,8 +1920,8 @@ var INDIAN_DB_PER100={
   'prawn':{k:100,p:18,c:1,fat:2,kind:'g'},
   'prawn curry':{k:150,p:16,c:5,fat:7,kind:'g'},
   // Eggs
-  'egg boiled':{k:155,p:13,c:1.1,fat:11,kind:'g'},
-  'egg fried':{k:196,p:14,c:0.8,fat:15,kind:'g'},
+  'egg boiled':{k:155,p:13,c:1.1,fat:11,kind:'g',piece_g:50},
+  'egg fried':{k:196,p:14,c:0.8,fat:15,kind:'g',piece_g:50},
   'omelette':{k:190,p:13,c:2,fat:14,kind:'g'},
   'egg curry':{k:160,p:11,c:5,fat:11,kind:'g'},
   'egg bhurji':{k:175,p:12,c:3,fat:13,kind:'g'},
@@ -1838,7 +1933,7 @@ var INDIAN_DB_PER100={
   'sev puri':{k:280,p:6,c:38,fat:12,kind:'g'},
   'pani puri':{k:240,p:5,c:35,fat:9,kind:'g'},
   'bhel puri':{k:200,p:4,c:32,fat:6,kind:'g'},
-  'biscuit':{k:480,p:7,c:75,fat:18,kind:'g'},
+  'biscuit':{k:480,p:7,c:75,fat:18,kind:'g',piece_g:10},
   'rusk':{k:410,p:9,c:72,fat:9,kind:'g'},
   // Sweets
   'gulab jamun':{k:330,p:4,c:50,fat:12,kind:'g'},
@@ -2426,7 +2521,12 @@ function renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow){
       addRow.style.display='block';
       var qtyIn=document.getElementById('food-qty-input');
       var unitSel=document.getElementById('food-unit-select');
-      if(unitSel)unitSel.value=r.per100.kind==='ml'?'ml':'g';
+      if(unitSel){
+        if(r.per100.piece_g) unitSel.value='piece';
+        else if(r.per100.kind==='ml') unitSel.value='ml';
+        else unitSel.value='g';
+        unitSel.dispatchEvent(new Event('change')); // trigger piece hint if needed
+      }
       if(qtyIn)qtyIn.focus();
     });
     dropdown.appendChild(item);
@@ -2434,11 +2534,17 @@ function renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow){
   dropdown.style.display='block';
 }
 
-function unitToGramsOrMl(qty,unit){
+function unitToGramsOrMl(qty,unit,per100){
   // Normalises any unit into the base 100g/100ml reference used by per100
   // nutrition data — kg and l just need converting to g/ml first.
   if(unit==='kg')return qty*1000;
   if(unit==='l')return qty*1000;
+  if(unit==='piece'){
+    // Use the piece_g from the food's per100 data if available,
+    // otherwise fall back to a generic 30g per piece estimate.
+    var pieceG=(per100&&per100.piece_g)?per100.piece_g:30;
+    return qty*pieceG;
+  }
   return qty;
 }
 
@@ -2447,18 +2553,22 @@ function addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow){
   var qty=parseFloat(qtyIn.value);
   if(!qty||qty<=0){showToast('Enter a quantity');return;}
   var unit=unitSel.value;
-  var baseQty=unitToGramsOrMl(qty,unit);
   var per100=fSelectedFood.per100;
+  var baseQty=unitToGramsOrMl(qty,unit,per100);
   var ratio=baseQty/100;
-  var unitLabel=unit==='kg'?'kg':unit==='l'?'L':unit;
+  var unitLabel=unit==='kg'?'kg':unit==='l'?'L':unit==='piece'?(qty===1?'piece':'pieces'):unit;
 
   fItems.push({
-    n:fSelectedFood.name+' ('+qty+unitLabel+')',
+    n:fSelectedFood.name+' ('+qty+' '+unitLabel+')',
     k:Math.round(per100.k*ratio),
     p:Math.round(per100.p*ratio*10)/10,
     c:Math.round(per100.c*ratio*10)/10,
     fat:Math.round(per100.fat*ratio*10)/10,
-    caff:Math.round((per100.caff||0)*ratio)
+    caff:Math.round((per100.caff||0)*ratio),
+    _per100:per100,   // stored for editing
+    _qty:qty,
+    _unit:unit,
+    _foodName:fSelectedFood.name
   });
 
   fSelectedFood=null;
@@ -2697,6 +2807,7 @@ function buildLineChart(points,color,minY,maxY){
   var svg=document.createElementNS(ns,'svg');
   svg.setAttribute('viewBox','0 0 '+w+' '+h);
   svg.setAttribute('preserveAspectRatio','none');
+  svg.style.overflow='visible';
 
   segments.forEach(function(seg){
     if(seg.length>1){
@@ -2710,14 +2821,51 @@ function buildLineChart(points,color,minY,maxY){
       svg.appendChild(poly);
     }
   });
+
+  // Tooltip element — shared across all points
+  var tooltip=document.createElementNS(ns,'g');
+  tooltip.style.display='none';
+  var tooltipBg=document.createElementNS(ns,'rect');
+  tooltipBg.setAttribute('rx','4');tooltipBg.setAttribute('fill','#13161c');tooltipBg.setAttribute('opacity','0.88');
+  var tooltipText=document.createElementNS(ns,'text');
+  tooltipText.setAttribute('fill','#fff');tooltipText.setAttribute('font-size','10');tooltipText.setAttribute('font-weight','600');
+  tooltip.appendChild(tooltipBg);tooltip.appendChild(tooltipText);
+
   points.forEach(function(p,i){
     if(p.y!==null){
+      var cx=xAt(i),cy=yAt(p.y);
+      // Visible dot
       var dot=document.createElementNS(ns,'circle');
-      dot.setAttribute('cx',xAt(i));dot.setAttribute('cy',yAt(p.y));dot.setAttribute('r','3');
+      dot.setAttribute('cx',cx);dot.setAttribute('cy',cy);dot.setAttribute('r','3');
       dot.setAttribute('fill',color);
       svg.appendChild(dot);
+      // Invisible larger hit area for touch
+      var hit=document.createElementNS(ns,'circle');
+      hit.setAttribute('cx',cx);hit.setAttribute('cy',cy);hit.setAttribute('r','14');
+      hit.setAttribute('fill','transparent');
+      hit.style.cursor='pointer';
+      (function(px,py,pp){
+        hit.addEventListener('click',function(e){
+          e.stopPropagation();
+          var label=pp.lbl+(pp.dk?' · '+pp.dk.slice(5):'');
+          var val=String(pp.y)+(pp.unit||'');
+          var txt=label+': '+val;
+          tooltipText.textContent=txt;
+          // Position tooltip — flip left if near right edge
+          var tx=px>w*0.7?px-txt.length*6-8:px+6;
+          var ty=py>20?py-18:py+14;
+          tooltipText.setAttribute('x',tx+4);tooltipText.setAttribute('y',ty+11);
+          tooltipBg.setAttribute('x',tx);tooltipBg.setAttribute('y',ty);
+          tooltipBg.setAttribute('width',txt.length*6+8);tooltipBg.setAttribute('height','18');
+          tooltip.style.display='';
+        });
+      })(cx,cy,p);
+      svg.appendChild(hit);
     }
   });
+  svg.appendChild(tooltip);
+  // Tap anywhere on the chart to dismiss the tooltip
+  svg.addEventListener('click',function(){ tooltip.style.display='none'; });
   return svg;
 }
 
@@ -2773,7 +2921,10 @@ function renderInsightsBody(){
   if(weightEntries.length>=2){
     var wic=D('insight-card');
     wic.appendChild(dottedTitle('Weight trend','var(--weight)'));
-    var wPoints=rangeDays.map(function(d){return {y:d.d.weight!==undefined&&d.d.weight!==null?d.d.weight:null};});
+    var wPoints=rangeDays.map(function(d){
+      return {y:d.d.weight!==undefined&&d.d.weight!==null?d.d.weight:null,
+              lbl:d.date.getDate()+' '+MS[d.date.getMonth()],dk:d.dk,unit:'kg'};
+    });
     var wChart=D('ins-linechart');
     var wSvg=buildLineChart(wPoints,'#6d5cf2');
     if(wSvg)wChart.appendChild(wSvg);
@@ -2791,7 +2942,10 @@ function renderInsightsBody(){
   if(kcalEntries.length>=2){
     var cic=D('insight-card');
     cic.appendChild(dottedTitle('Calorie trend','var(--food)'));
-    var cPoints=rangeDays.map(function(d){return {y:d.d.food&&d.d.food.kcal?d.d.food.kcal:null};});
+    var cPoints=rangeDays.map(function(d){
+      return {y:d.d.food&&d.d.food.kcal?d.d.food.kcal:null,
+              lbl:d.date.getDate()+' '+MS[d.date.getMonth()],dk:d.dk,unit:' kcal'};
+    });
     var cChart=D('ins-linechart');
     var allK=cPoints.filter(function(p){return p.y!==null;}).map(function(p){return p.y;}).concat([KT]);
     var cSvg=buildLineChart(cPoints,'#16a34a',0,Math.max.apply(null,allK)*1.1);
@@ -3057,8 +3211,7 @@ document.getElementById('py').addEventListener('click',function(){cy--;renderCal
 document.getElementById('pm').addEventListener('click',function(){cm--;if(cm<0){cm=11;cy--;}renderCal();});
 document.getElementById('nm').addEventListener('click',function(){cm++;if(cm>11){cm=0;cy++;}renderCal();});
 document.getElementById('ny').addEventListener('click',function(){cy++;renderCal();});
-document.getElementById('menu-btn').addEventListener('click',goMenu);
-document.getElementById('day-menu-btn').addEventListener('click',goMenu);
+// menu-btn and day-menu-btn removed — replaced by tab bar "More" tab
 document.getElementById('cal-insights-btn').appendChild(svgIcon(MENU_ICONS.insights,17));
 document.getElementById('cal-insights-btn').addEventListener('click',goInsights);
 document.getElementById('cal-logout-btn').appendChild(svgIcon(MENU_ICONS.logout,17));
