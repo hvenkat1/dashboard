@@ -418,7 +418,7 @@ input,select,textarea{font-size:16px!important}
 <div class="screen" id="s-myplan">
   <div class="topbar">
     <button class="topbar-back" onclick="goBack('s-cal')">&#8249;</button>
-    <div class="topbar-title">Training plan</div>
+    <div class="topbar-title">My Goals</div>
   </div>
   <div class="sbody" id="myplan-body"></div>
 </div>
@@ -740,7 +740,7 @@ function renderMenu(){
   list.appendChild(row('today','My Day',function(){ sd=todayKey(); renderDayView(); goScreen('s-day'); }));
   list.appendChild(row('insights','Insights',function(){ goInsights(); }));
   list.appendChild(row('profile','Profile',function(){ goProfile(); }));
-  list.appendChild(row('plan','Training plan',function(){ goMyPlan(); }));
+  list.appendChild(row('plan','My Goals',function(){ goMyPlan(); }));
   list.appendChild(row('settings','AI Settings',function(){ showSettings(); }));
 
   body.appendChild(list);
@@ -770,61 +770,78 @@ function renderMenu(){
 function renderMyPlan(){
   var body=document.getElementById('myplan-body');
   body.innerHTML='';
+  var user=auth.currentUser;
 
-  if(sd!==todayKey()){
-    var jumpRow=D('');jumpRow.style.cssText='margin-bottom:14px';
-    jumpRow.appendChild(Btn('btn btn-out','Jump to today\'s suggestion',function(){
-      sd=todayKey();
-      renderMyPlan();
-    }));
-    body.appendChild(jumpRow);
-  }
+  // Load goals from Firestore, then render the editor
+  var goalsRef=user?db.collection('users').doc(user.uid).collection('profile').doc('goals'):null;
 
-  var plan=getPlan(sd);
-  var dateObj=new Date(sd+'T12:00:00');
-  var dlabel=DS[dateObj.getDay()]+', '+dateObj.getDate()+' '+MS[dateObj.getMonth()]+' '+dateObj.getFullYear();
+  var intro=T('div','','Use this space to write your fitness goals, training notes, or anything you want to track over time.');
+  intro.style.cssText='font-size:12px;color:var(--mu);line-height:1.6;margin-bottom:14px';
+  body.appendChild(intro);
 
   var card=D('card');
   var hdr=D('card-hdr');
-  hdr.appendChild(T('div','card-title',dlabel + (sd===todayKey()?' (today)':'')));
+  hdr.appendChild(dottedTitle('My Goals','var(--accent)'));
   card.appendChild(hdr);
   var cb=D('card-body');
 
-  if(!plan){
-    cb.appendChild(T('div','text-mu','No suggestion available before the plan\'s start date.'));
-  } else {
-    var nameRow=D('row-flex mb-8');
-    nameRow.appendChild(T('div','text-bold',plan.n));
-    nameRow.appendChild(T('div','badge b-plan',plan.ph));
-    cb.appendChild(nameRow);
-    if(plan.ex&&plan.ex.length){
-      var el2=D('ex-list');
-      plan.ex.forEach(function(e){
-        var r=D('ex-row');ap(r,T('span','ex-n',e.n),T('span','ex-s',e.s));el2.appendChild(r);
+  var textarea=E('textarea','');
+  textarea.placeholder='e.g.\n• Reach 69kg by October 2026\n• Train 5 days/week\n• Run 5km without stopping by December\n• Hit 4L water daily';
+  textarea.style.cssText='width:100%;min-height:200px;padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;font-size:13px;background:var(--bg);color:var(--tx);line-height:1.6;resize:vertical;font-family:inherit;outline:none;box-sizing:border-box';
+  textarea.addEventListener('focus',function(){textarea.style.borderColor='var(--accent)';});
+  textarea.addEventListener('blur',function(){textarea.style.borderColor='var(--bd)';});
+  cb.appendChild(textarea);
+
+  var statusMsg=T('div','','');
+  statusMsg.style.cssText='font-size:11px;color:var(--mu);margin-top:6px;min-height:16px';
+  cb.appendChild(statusMsg);
+
+  var saveBtn=Btn('btn btn-gap','Save goals',function(){
+    saveBtn.textContent='Saving...';
+    var text=textarea.value;
+    if(goalsRef){
+      goalsRef.set({text:text,updatedAt:new Date().toISOString()}).then(function(){
+        saveBtn.textContent='Save goals';
+        statusMsg.textContent='Saved ✓';
+        statusMsg.style.color='var(--gr)';
+        setTimeout(function(){statusMsg.textContent='';},3000);
+      }).catch(function(){
+        saveBtn.textContent='Save goals';
+        statusMsg.textContent='Failed to save — check your connection.';
+        statusMsg.style.color='var(--re)';
       });
-      cb.appendChild(el2);
+    } else {
+      localStorage.setItem('forma_goals',text);
+      saveBtn.textContent='Save goals';
+      statusMsg.textContent='Saved locally ✓';
+      setTimeout(function(){statusMsg.textContent='';},3000);
     }
-  }
+  });
+  cb.appendChild(saveBtn);
   card.appendChild(cb);
   body.appendChild(card);
 
-  var navRow=D('dayflip-nav');
-  var prevBtn=Btn('dayflip-btn','‹ Previous day',function(){
-    var d=new Date(sd+'T12:00:00');d.setDate(d.getDate()-1);
-    sd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-    renderMyPlan();
-  });
-  var nextBtn=Btn('dayflip-btn','Next day ›',function(){
-    var d=new Date(sd+'T12:00:00');d.setDate(d.getDate()+1);
-    sd=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-    renderMyPlan();
-  });
-  ap(navRow,prevBtn,nextBtn);
-  body.appendChild(navRow);
+  // Load existing goals
+  var loading=T('div','','Loading...');
+  loading.style.cssText='font-size:12px;color:var(--mu);margin-top:8px';
+  body.appendChild(loading);
 
-  var note=D('');note.style.cssText='font-size:11px;color:var(--mu);margin-top:14px;line-height:1.5';
-  note.textContent='This is your personal reference plan — it doesn\'t auto-fill the training log. Log your actual workout from the day view as usual.';
-  body.appendChild(note);
+  if(goalsRef){
+    goalsRef.get().then(function(doc){
+      loading.remove();
+      if(doc.exists&&doc.data().text){
+        textarea.value=doc.data().text;
+      }
+    }).catch(function(){
+      loading.remove();
+      var local=localStorage.getItem('forma_goals');
+      if(local)textarea.value=local;
+    });
+  } else {
+    loading.remove();
+    var local=localStorage.getItem('forma_goals');
+    if(local)textarea.value=local;
+  }
 }
 
 // ── PROFILE ──────────────────────────────────────────────────────────────
@@ -1278,6 +1295,12 @@ function renderDayView(){
     wb.appendChild(T('div','text-mu','No weight logged for this day.'));
   }
   wc.appendChild(wb);body.appendChild(wc);
+
+  // Weekly summary — shows last 7 days at a glance. Always visible on
+  // today's view, collapsed by default so it doesn't clutter the page.
+  if(sd===todayKey()){
+    renderWeeklySummaryCard(body);
+  }
 }
 
 // Cache: {date: 'YYYY-MM-DD', text: '...'}  — one entry, refreshed when
@@ -1342,6 +1365,102 @@ function buildDailySummaryLine(training,kcal,water,protein,isToday,isFuture){
   // Kept for backward compatibility — no longer used by the day view
   // but may be referenced elsewhere.
   return {text:'',color:'var(--mu)'};
+}
+
+function renderWeeklySummaryCard(body){
+  // Build 7-day stats ending today
+  var today=new Date();today.setHours(12,0,0,0);
+  var days=[];
+  for(var i=6;i>=0;i--){
+    var d=new Date(today);d.setDate(d.getDate()-i);
+    var dk=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    days.push({dk:dk,d:AD[dk]||{},date:d});
+  }
+
+  var workouts=days.filter(function(d){return d.d.training&&d.d.training.status==='done';}).length;
+  var kcalDays=days.filter(function(d){return d.d.food&&d.d.food.kcal;});
+  var avgKcal=kcalDays.length?Math.round(kcalDays.reduce(function(a,d){return a+d.d.food.kcal;},0)/kcalDays.length):0;
+  var waterDays=days.filter(function(d){return d.d.food&&d.d.food.water;});
+  var avgWater=waterDays.length?Math.round(waterDays.reduce(function(a,d){return a+d.d.food.water;},0)/waterDays.length*10)/10:0;
+  var weightEntries=days.filter(function(d){return d.d.weight;});
+  var weightChange=weightEntries.length>=2?
+    Math.round((weightEntries[weightEntries.length-1].d.weight-weightEntries[0].d.weight)*10)/10:null;
+
+  // Don't show if there's essentially no data for the week
+  if(!workouts&&!kcalDays.length&&!weightEntries.length)return;
+
+  var card=D('card');card.style.marginTop='4px';
+  var hdr=D('card-hdr');
+  var titleRow=D('row-flex');
+  titleRow.appendChild(dottedTitle('This week','var(--weight)'));
+  // Collapse/expand toggle
+  var collapsed=true;
+  var toggleBtn=T('button','','Show');
+  toggleBtn.style.cssText='background:none;border:none;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;padding:0';
+  hdr.appendChild(titleRow);
+  hdr.appendChild(toggleBtn);
+  card.appendChild(hdr);
+
+  var cb=D('card-body');cb.style.display='none';
+  card.appendChild(cb);
+  body.appendChild(card);
+
+  toggleBtn.addEventListener('click',function(){
+    collapsed=!collapsed;
+    cb.style.display=collapsed?'none':'block';
+    toggleBtn.textContent=collapsed?'Show':'Hide';
+  });
+
+  // Stat grid
+  var grid=D('ins-summary-grid');
+  function statTile(lbl,val,sub,color){
+    var t=D('ins-stat');
+    t.appendChild(T('div','is-lbl',lbl));
+    var v=T('div','is-val',val);v.style.color=color||'var(--tx)';
+    t.appendChild(v);
+    t.appendChild(T('div','is-sub',sub));
+    return t;
+  }
+  grid.appendChild(statTile('Workouts',workouts+' / 7','days done',workouts>=5?'var(--gr)':workouts>=3?'var(--am)':'var(--re)'));
+  grid.appendChild(statTile('Avg calories',avgKcal?avgKcal+' kcal':'--','per day',avgKcal>0&&avgKcal<=KT+200?'var(--gr)':'var(--mu)'));
+  grid.appendChild(statTile('Avg water',avgWater?avgWater+'L':'--','per day',avgWater>=3.5?'var(--gr)':'var(--am)'));
+  grid.appendChild(statTile('Weight',weightChange!==null?(weightChange>0?'+':'')+weightChange+'kg':'--','this week',weightChange===null?'var(--mu)':weightChange<=0?'var(--gr)':'var(--re)'));
+  cb.appendChild(grid);
+
+  // 7-day workout streak visualization
+  var streakRow=D('');streakRow.style.cssText='display:flex;gap:4px;margin-top:12px;align-items:center';
+  var streakLbl=T('span','','');streakLbl.style.cssText='font-size:10px;color:var(--mu);margin-right:4px';
+  streakRow.appendChild(streakLbl);
+  var streakDots=D('');streakDots.style.cssText='display:flex;gap:4px';
+  var streakCount=0;
+  days.forEach(function(day){
+    var dot=D('');
+    var status=day.d.training?day.d.training.status:'none';
+    var isFuture=day.date>today;
+    dot.style.cssText='width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0';
+    if(isFuture){
+      dot.style.background='var(--bd)';
+    } else if(status==='done'){
+      dot.style.background='var(--accent)';
+      dot.textContent='✓';
+      streakCount++;
+    } else if(status==='rest'){
+      dot.style.background='var(--s2)';dot.style.color='var(--mu)';dot.textContent='R';
+    } else if(status==='skip'){
+      dot.style.background='var(--rbg)';dot.style.color='var(--re)';dot.textContent='✕';
+    } else {
+      dot.style.background='var(--s2)';
+    }
+    // Day label below
+    var wrap=D('');wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px';
+    var dayLbl=T('span','',DS[day.date.getDay()].charAt(0));
+    dayLbl.style.cssText='font-size:9px;color:var(--mu)';
+    wrap.appendChild(dot);wrap.appendChild(dayLbl);
+    streakDots.appendChild(wrap);
+  });
+  streakLbl.textContent=streakCount+' / 7 workouts';
+  streakRow.appendChild(streakDots);
+  cb.appendChild(streakRow);
 }
 
 function autoFlags(f,tk){
@@ -3060,6 +3179,54 @@ function renderInsightsBody(){
     });
     wic.appendChild(wLabels);
     body.appendChild(wic);
+
+    // Weight projection — only meaningful with 7+ days of data and a
+    // downward trend. Uses simple linear regression on actual logged weights.
+    if(weightEntries.length>=4){
+      var proj=calcWeightProjection(weightEntries);
+      if(proj){
+        var pic=D('insight-card');
+        pic.appendChild(dottedTitle('Weight projection','var(--weight)'));
+        var pb=D('card-body');
+
+        var currentW=weightEntries[weightEntries.length-1].d.weight;
+        var targetW=profileData&&profileData.targetWeight?parseFloat(profileData.targetWeight):70;
+
+        var projRow=D('');projRow.style.cssText='display:flex;gap:16px;margin-bottom:10px';
+        function projStat(lbl,val,color){
+          var s=D('');s.style.cssText='flex:1;text-align:center;padding:10px;background:var(--s2);border-radius:9px';
+          s.appendChild(T('div','',val)).style.cssText='font-size:18px;font-weight:800;color:'+(color||'var(--tx)');
+          s.appendChild(T('div','',lbl)).style.cssText='font-size:10px;color:var(--mu);margin-top:2px';
+          return s;
+        }
+        var ratePerWeek=Math.round(proj.ratePerDay*7*100)/100;
+        projRow.appendChild(projStat('kg/week',ratePerWeek<0?ratePerWeek:'+'+(ratePerWeek),ratePerWeek<0?'var(--gr)':'var(--re)'));
+        projRow.appendChild(projStat('current',currentW+'kg','var(--weight)'));
+        projRow.appendChild(projStat('goal',targetW+'kg','var(--accent)'));
+        pb.appendChild(projRow);
+
+        if(proj.ratePerDay<0){
+          var daysToGoal=Math.ceil((currentW-targetW)/Math.abs(proj.ratePerDay));
+          if(daysToGoal>0&&daysToGoal<1000){
+            var eta=new Date();eta.setDate(eta.getDate()+daysToGoal);
+            var etaStr=eta.getDate()+' '+MS[eta.getMonth()]+' '+eta.getFullYear();
+            var etaEl=T('div','','At this rate, you\'ll reach '+targetW+'kg around '+etaStr+' ('+Math.round(daysToGoal/7)+' weeks).');
+            etaEl.style.cssText='font-size:13px;color:var(--tx);line-height:1.5;padding:8px 10px;background:var(--gbg);border:0.5px solid var(--gbd);border-radius:8px';
+            pb.appendChild(etaEl);
+          }
+        } else if(proj.ratePerDay>0){
+          var warn=T('div','','Weight is trending up over this period — worth reviewing food intake.');
+          warn.style.cssText='font-size:13px;color:var(--am);line-height:1.5;padding:8px 10px;background:var(--ybg,#fffbeb);border:0.5px solid var(--ybd,#fde68a);border-radius:8px';
+          pb.appendChild(warn);
+        }
+
+        var disclaimer=T('div','','Based on linear trend from '+weightEntries.length+' weigh-ins. Actual results vary with water retention, hormones, and workout intensity.');
+        disclaimer.style.cssText='font-size:10px;color:var(--mu);margin-top:8px;line-height:1.5';
+        pb.appendChild(disclaimer);
+        pic.appendChild(pb);
+        body.appendChild(pic);
+      }
+    }
   }
 
   // Calorie trend — line chart against target
@@ -3257,6 +3424,28 @@ function fetchAiInsightCommentary(rangeDays,stats,generation){
 
 // Returns the immediately preceding period of the same length as rangeDays,
 // e.g. if rangeDays is the last 7 days, this returns the 7 days before that.
+// Linear regression on weight entries to project trend rate (kg/day).
+// Returns null if there's not enough data or the trend is flat.
+function calcWeightProjection(weightEntries){
+  if(weightEntries.length<4)return null;
+  // Convert dates to day numbers (day 0 = first entry)
+  var t0=weightEntries[0].date.getTime();
+  var pts=weightEntries.map(function(e){
+    return {x:(e.date.getTime()-t0)/(1000*60*60*24),y:e.d.weight};
+  });
+  // Simple linear regression: y = mx + b
+  var n=pts.length;
+  var sumX=pts.reduce(function(a,p){return a+p.x;},0);
+  var sumY=pts.reduce(function(a,p){return a+p.y;},0);
+  var sumXY=pts.reduce(function(a,p){return a+p.x*p.y;},0);
+  var sumX2=pts.reduce(function(a,p){return a+p.x*p.x;},0);
+  var denom=n*sumX2-sumX*sumX;
+  if(!denom)return null;
+  var slope=(n*sumXY-sumX*sumY)/denom; // kg per day
+  if(Math.abs(slope)<0.001)return null; // essentially flat, not useful
+  return {ratePerDay:Math.round(slope*1000)/1000};
+}
+
 function resolvePreviousPeriod(rangeDays){
   if(!rangeDays.length)return [];
   var n=rangeDays.length;
