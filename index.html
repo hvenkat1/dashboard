@@ -125,6 +125,7 @@ input,select,button,textarea{font-family:inherit}
 .mi:last-child{border-bottom:none}
 .mi-n{font-size:11px;flex:1}.mi-k{font-size:11px;color:var(--mu)}
 .mi-del{font-size:16px;color:var(--fa);background:none;border:none;cursor:pointer;padding:0 0 0 8px}
+.mi-edit{font-size:12px;font-weight:600;color:var(--bl);background:none;border:none;cursor:pointer;padding:0 4px 0 8px}
 .flags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .flag{font-size:10px;font-weight:500;padding:4px 10px;border-radius:10px;border:0.5px solid}
 .fg{background:var(--gbg);color:var(--gr);border-color:var(--gbd)}.fw{background:var(--abg);color:var(--am);border-color:var(--abd)}.fi{background:var(--bbg);color:var(--bl);border-color:var(--bbd)}
@@ -234,6 +235,7 @@ input,select,button,textarea{font-family:inherit}
 .bnav-log{position:relative;top:-10px}
 .bnav-log .bnav-icon{background:var(--accent);color:#fff;width:48px;height:48px;border-radius:50%;box-shadow:0 4px 12px rgba(255,90,54,.4)}
 .bnav-log.on .bnav-icon{background:var(--accent-dark)}
+.bnav-log .bnav-lbl{display:none}
 .empty{text-align:center;padding:24px 16px;color:var(--mu);font-size:12px;line-height:1.7;background:var(--s2);border-radius:var(--ra);border:0.5px dashed var(--fa)}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--tx);color:#fff;padding:10px 18px;border-radius:14px;font-size:12px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88%;width:max-content;text-align:center;line-height:1.4}
 .toast.show{opacity:1}
@@ -669,6 +671,25 @@ function goInsights(){renderInsights();goScreen('s-insights');}
 function goMyPlan(){renderMyPlan();goScreen('s-myplan');}
 function goProfile(){renderProfile();goScreen('s-profile');}
 function goMenu(){renderMenu();goScreen('s-menu');}
+
+// Shared "no AI key" nudge — consistent across all AI-powered features.
+function noAiKeyBanner(context){
+  var wrap=D('');
+  wrap.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bbg);border:0.5px solid var(--bbd);border-radius:9px';
+  var icon=T('span','','💡');icon.style.fontSize='16px';
+  var text=D('');text.style.cssText='flex:1;font-size:12px;color:var(--tx);line-height:1.4';
+  var messages={
+    'snap':'Snap a meal uses AI to identify food from photos. Add a key to use it.',
+    'insight':'Add an AI key to get a personalised one-line daily insight.',
+    'insights-take':'Add an AI key to get commentary on your weekly data.',
+    'food-search':'Add an AI key as a last-resort lookup for foods not in the database.'
+  };
+  text.textContent=messages[context]||'Add an AI key to unlock this feature.';
+  var btn=Btn('btn-sm','Go to AI Settings',function(){showSettings();});
+  btn.style.cssText='flex-shrink:0;background:var(--accent);color:#fff;border-color:var(--accent);font-size:11px;padding:5px 10px;white-space:nowrap';
+  ap(wrap,icon,text,btn);
+  return wrap;
+}
 
 function svgIcon(paths,size){
   var ns='http://www.w3.org/2000/svg';
@@ -1274,8 +1295,9 @@ function renderDailyInsight(d,el){
   }
 
   if(!key){
-    el.style.cssText+='color:var(--mu);font-style:normal;font-size:12px';
-    el.textContent='Add a Gemini key in AI Settings for personalised daily insights.';
+    // Replace the italic insight text element with the banner
+    var parent=el.parentNode;
+    if(parent){parent.replaceChild(noAiKeyBanner('insight'),el);}
     return;
   }
 
@@ -1522,6 +1544,9 @@ function buildFoodForm(){
 
   ap(quickRow, snapBtn, barcodeBtn);
   body.appendChild(quickRow);
+  if(!aiKeys[aiProvider]){
+    body.appendChild(noAiKeyBanner('snap'));
+  }
 
   fSelectedFood=null;
   fSearchGeneration++; // cancel any in-flight search from previous form state
@@ -1643,7 +1668,7 @@ function buildFoodForm(){
       var mn=D('mi-n');mn.textContent=it.n+(it.p?' (P:'+Math.round(it.p)+'g C:'+Math.round(it.c||0)+'g F:'+Math.round(it.fat||0)+'g)':'');
       var mk=T('span','mi-k',it.k+' kcal');
       // Edit button — pencil icon
-      var editBtn=Btn('mi-del','Edit',(function(idx,wrp){
+      var editBtn=Btn('mi-edit','Edit',(function(idx,wrp){
         return function(){
           // Toggle inline edit row
           var existing=wrp.querySelector('.item-edit-row');
@@ -1685,7 +1710,7 @@ function buildFoodForm(){
           setTimeout(function(){qIn.focus();qIn.select();},50);
         };
       })(i,wrapper));
-      editBtn.style.cssText='background:none;border:none;cursor:pointer;padding:0 6px 0 8px;font-size:13px;color:var(--bl)';
+      editBtn.title='Edit quantity';
       var del=Btn('mi-del','✕',function(){fItems.splice(i,1);buildFoodForm();});
       ap(mi,mn,mk,editBtn,del);
       wrapper.appendChild(mi);
@@ -2284,9 +2309,7 @@ function handleFoodPhoto(file, resultArea, qtyRow, addRow, sInput, dropdown){
   var key=aiKeys[aiProvider];
   if(!key||aiProvider==='openai'){
     resultArea.innerHTML='';
-    var msg=T('div','','Photo analysis needs a Gemini or Claude key configured in AI Settings.');
-    msg.style.cssText='font-size:12px;color:var(--am);padding:10px 0';
-    resultArea.appendChild(msg);
+    resultArea.appendChild(noAiKeyBanner('snap'));
     return;
   }
   if(aiProvider!=='gemini'){
@@ -3103,22 +3126,22 @@ function renderInsightsBody(){
   if(foodDays<n*0.5)tips.appendChild(T('div','ic-row','Food logged on '+foodDays+' of '+n+' days — more consistent logging gives clearer insights.'));
   body.appendChild(tips);
 
-  // AI commentary — only attempted if a provider key is configured. Sits on
-  // top of everything computed above rather than replacing it; the
-  // rule-based stats and charts always work with no key, this is additive.
-  if(aiKeys[aiProvider]){
-    var aiCard=D('insight-card');
-    aiCard.id='ai-insight-card';
-    aiCard.appendChild(dottedTitle('AI take',aiProvider==='anthropic'?'#cc785c':aiProvider==='openai'?'#10a37f':'#4285f4'));
-    var aiBody=D('');aiBody.id='ai-insight-body';
+  // AI commentary — shown regardless of key, but with a nudge if no key set.
+  var aiCard=D('insight-card');
+  aiCard.id='ai-insight-card';
+  aiCard.appendChild(dottedTitle('AI take',aiProvider==='anthropic'?'#cc785c':aiProvider==='openai'?'#10a37f':'#4285f4'));
+  var aiBody=D('');aiBody.id='ai-insight-body';
+  if(!aiKeys[aiProvider]){
+    aiBody.appendChild(noAiKeyBanner('insights-take'));
+  } else {
     var aiLoading=D('loading');
     aiLoading.appendChild(D('spinner'));
     aiLoading.appendChild(T('span','','Asking '+(aiProvider==='anthropic'?'Claude':aiProvider==='openai'?'OpenAI':'Gemini')+'...'));
     aiBody.appendChild(aiLoading);
-    aiCard.appendChild(aiBody);
-    body.appendChild(aiCard);
     fetchAiInsightCommentary(rangeDays,{n:n,workoutDays:workoutDays,avgKcal:avgKcal,avgWater:avgWater,weightChange:weightChange,foodDays:foodDays,rangeLbl:rangeLbl},thisGeneration);
   }
+  aiCard.appendChild(aiBody);
+  body.appendChild(aiCard);
 }
 
 // Sends a compact statistical summary (not raw daily logs) to the
