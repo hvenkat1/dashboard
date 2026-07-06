@@ -2196,9 +2196,18 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
   // Tier 1 — Local database: instant, no network, covers Indian dishes and
   // common foods. Primary source for everyday meals.
   var localResults=[];
-  var ql=query.toLowerCase();
+  var ql=query.toLowerCase().trim();
+  var queryWordCount=ql.split(/\s+/).length;
   Object.keys(INDIAN_DB_PER100).forEach(function(key){
-    if(key.indexOf(ql)>=0||ql.indexOf(key)>=0){
+    var keyWords=key.split(/\s+/).length;
+    // Always match if the query starts with or equals the key
+    var exactOrPrefix=ql===key||ql.startsWith(key+' ')||key.startsWith(ql);
+    // Match if key contains query (user typed part of a multi-word food name)
+    var keyContainsQuery=key.indexOf(ql)>=0;
+    // Only match "query contains key" when the query isn't much longer than the key
+    // — prevents "potato" matching "srilankan potato curry" (3 words vs 1 word)
+    var queryContainsKey=ql.indexOf(key)>=0&&queryWordCount<=keyWords+1;
+    if(exactOrPrefix||keyContainsQuery||queryContainsKey){
       localResults.push({name:key.charAt(0).toUpperCase()+key.slice(1),source:'Common foods',per100:INDIAN_DB_PER100[key]});
     }
   });
