@@ -1326,26 +1326,6 @@ function renderDayView(){
   var f=d.food||{};
   var meals=dedupeMealsByName(f.meals||[]);
 
-  // Copy yesterday's meals — shown when nothing logged today yet
-  if(!meals.length&&!isFutureDate(sd)){
-    var ydk=getPrevDayKey(sd);
-    var yd=AD[ydk]||{};
-    var yMeals=yd.food&&yd.food.meals&&yd.food.meals.length;
-    if(yMeals){
-      var copyBtn=Btn('btn-out','Copy yesterday\'s meals',function(){
-        var copy=JSON.parse(JSON.stringify(yd.food.meals));
-        var existingFood=AD[sd]&&AD[sd].food?JSON.parse(JSON.stringify(AD[sd].food)):{};
-        existingFood.meals=copy;
-        existingFood.kcal=copy.reduce(function(a,m){return a+(m.kcal||0);},0);
-        saveDay(sd,{food:existingFood},function(){
-          showToast('Yesterday\'s meals copied');
-          renderDayView();
-        });
-      });
-      copyBtn.style.cssText='font-size:12px;margin-bottom:10px;width:100%';
-      fb.appendChild(copyBtn);
-    }
-  }
   if(meals.length){
     var tk=meals.reduce(function(a,m){return a+(m.kcal||0);},0);
     var kp=pct(tk,KT),wp=pct(f.water||0,WT),cp=pct(f.caffeine||0,CT);
@@ -1562,39 +1542,66 @@ function renderWeeklySummaryCard(body){
   grid.appendChild(statTile('Weight',weightChange!==null?(weightChange>0?'+':'')+weightChange+'kg':'--','Mon → today',weightChange===null?'var(--mu)':weightChange<=0?'var(--gr)':'var(--re)'));
   cb.appendChild(grid);
 
-  // Week dot visualization — all 7 days shown, future greyed out
-  var streakRow=D('');streakRow.style.cssText='display:flex;gap:4px;margin-top:12px;align-items:center';
-  var streakLbl=T('span','','');streakLbl.style.cssText='font-size:10px;color:var(--mu);margin-right:4px';
-  streakRow.appendChild(streakLbl);
-  var streakDots=D('');streakDots.style.cssText='display:flex;gap:4px';
+  // Week day visualization — horizontal scrollable row of day pills
+  var dayRow=D('');dayRow.style.cssText='display:flex;gap:6px;margin-top:14px;overflow-x:auto;padding-bottom:4px';
   var streakCount=0;
   days.forEach(function(day){
-    var dot=D('');
+    var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     var status=day.d.training?day.d.training.status:'none';
-    dot.style.cssText='width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0';
+    var pill=D('');
+    pill.style.cssText='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:36px';
+
+    // Status icon circle
+    var icon=D('');
+    icon.style.cssText='width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px';
     if(day.isFuture){
-      dot.style.background='var(--bd)';
-      dot.style.color='var(--mu)';
+      icon.style.background='var(--s2)';
+      icon.style.border='1.5px dashed var(--bd)';
     } else if(status==='done'){
-      dot.style.background='var(--accent)';
-      dot.textContent='✓';
+      icon.style.background='var(--accent)';
+      icon.textContent='✓';
+      icon.style.color='#fff';
+      icon.style.fontWeight='700';
       streakCount++;
     } else if(status==='rest'){
-      dot.style.background='var(--s2)';dot.style.color='var(--mu)';dot.textContent='R';
+      icon.style.background='var(--s2)';
+      icon.textContent='😴';
+      icon.style.fontSize='14px';
     } else if(status==='skip'){
-      dot.style.background='var(--rbg)';dot.style.color='var(--re)';dot.textContent='✕';
+      icon.style.background='var(--rbg)';
+      icon.textContent='✕';
+      icon.style.color='var(--re)';
+      icon.style.fontWeight='700';
     } else {
-      dot.style.background='var(--s2)';
+      icon.style.background='var(--s2)';
+      icon.style.border='1.5px dashed var(--bd)';
     }
-    var wrap=D('');wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px';
-    var dayLbl=T('span','',DS[day.date.getDay()].charAt(0));
-    dayLbl.style.cssText='font-size:9px;color:'+(day.isFuture?'var(--bd)':'var(--mu)');
-    wrap.appendChild(dot);wrap.appendChild(dayLbl);
-    streakDots.appendChild(wrap);
+
+    // Day name label
+    var lbl=T('span','',dayNames[day.date.getDay()]);
+    lbl.style.cssText='font-size:10px;font-weight:600;color:'+(day.isFuture?'var(--bd)':'var(--mu)');
+
+    // Date number
+    var dateNum=T('span','',day.date.getDate()+'');
+    dateNum.style.cssText='font-size:9px;color:'+(day.isFuture?'var(--bd)':'var(--mu)');
+
+    pill.appendChild(icon);pill.appendChild(lbl);pill.appendChild(dateNum);
+    dayRow.appendChild(pill);
   });
-  streakLbl.textContent=streakCount+' / '+daysElapsed+' so far';
-  streakRow.appendChild(streakDots);
-  cb.appendChild(streakRow);
+
+  // Legend
+  var legend=D('');legend.style.cssText='display:flex;gap:12px;margin-top:10px;flex-wrap:wrap';
+  function legendItem(icon,label){
+    var li=D('');li.style.cssText='display:flex;align-items:center;gap:4px;font-size:10px;color:var(--mu)';
+    var ic=T('span','',icon);ic.style.fontSize='12px';
+    li.appendChild(ic);li.appendChild(T('span','',label));
+    return li;
+  }
+  legend.appendChild(legendItem('✓','Workout done'));
+  legend.appendChild(legendItem('😴','Rest day'));
+  legend.appendChild(legendItem('✕','Skipped'));
+  cb.appendChild(dayRow);
+  cb.appendChild(legend);
 }
 
 function autoFlags(f,tk){
@@ -2012,6 +2019,41 @@ function buildFoodForm(){
     saveHint.style.cssText='font-size:10px;color:var(--mu);margin-top:6px;line-height:1.4';
     body.appendChild(saveHint);
     body.appendChild(T('div','','\u00a0'));
+  }
+
+  // From yesterday — show yesterday's meals as copyable cards, per meal
+  var ydk=getPrevDayKey(sd);
+  var yd=AD[ydk]||{};
+  var yMeals=yd.food&&yd.food.meals&&yd.food.meals.length?yd.food.meals:[];
+  // Only show meals not already logged today
+  var todayMealNames=fSavedMeals.map(function(m){return m.name;});
+  var copyableMeals=yMeals.filter(function(m){return todayMealNames.indexOf(m.name)<0;});
+
+  if(copyableMeals.length){
+    body.appendChild(T('div','slbl','From yesterday'));
+    copyableMeals.forEach(function(ym){
+      var card=D('');
+      card.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--sf);border:0.5px solid var(--bd);border-radius:10px;margin-bottom:8px';
+      var info=D('');info.style.cssText='flex:1;min-width:0';
+      var nameEl=T('div','',ym.name);nameEl.style.cssText='font-size:13px;font-weight:700;color:var(--tx)';
+      var metaEl=T('div','',(ym.kcal||0)+' kcal · '+(ym.items?ym.items.length:0)+' items');
+      metaEl.style.cssText='font-size:11px;color:var(--mu);margin-top:2px';
+      info.appendChild(nameEl);info.appendChild(metaEl);
+      var addBtn=Btn('btn-sm','Add',(function(meal){
+        return function(){
+          var copy=JSON.parse(JSON.stringify(meal));
+          fSavedMeals.push(copy);
+          saveAllFood(false);
+          addBtn.textContent='Added ✓';
+          addBtn.disabled=true;
+          addBtn.style.cssText='opacity:0.5;cursor:default';
+          card.style.background='var(--gbg)';
+        };
+      })(ym));
+      addBtn.style.cssText='flex-shrink:0;background:var(--accent);color:#fff;border-color:var(--accent);padding:6px 14px';
+      card.appendChild(info);card.appendChild(addBtn);
+      body.appendChild(card);
+    });
   }
 
   if(fSavedMeals.length){
