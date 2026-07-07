@@ -1337,9 +1337,19 @@ function renderDayView(){
       m.appendChild(T('div','mc-sub',sub));return m;
     }
     var pc=PCOLS[f.protein]||['var(--mu)','var(--bg)','var(--bd)'];
-    var mcp=D('mc');ap(mcp,T('div','mc-lbl','Protein'));
-    if(f.protein){var pill=T('div','ppill',f.protein);pill.style.cssText='background:'+pc[1]+';color:'+pc[0]+';border:0.5px solid '+pc[2];mcp.appendChild(pill);}
-    else{mcp.appendChild(T('div','mc-sub','Not set'));}
+    var proteinG=f.proteinG||0;
+    var proteinTarget=Math.round(profileData&&profileData.weight?profileData.weight*1.6:120); // ~1.6g per kg bodyweight
+    var proteinPct=proteinG>0?Math.min(100,Math.round(proteinG/proteinTarget*100)):0;
+    var mcp;
+    if(proteinG>0){
+      // Show as a proper metric card with grams and progress bar
+      mcp=mcCard('Protein',proteinG+'g / '+proteinTarget+'g',pc[0],proteinPct,
+        (f.protein||'')+(proteinG<proteinTarget?' · '+(proteinTarget-proteinG)+'g to go':' · Target reached'));
+    } else {
+      mcp=D('mc');ap(mcp,T('div','mc-lbl','Protein'));
+      if(f.protein){var pill=T('div','ppill',f.protein);pill.style.cssText='background:'+pc[1]+';color:'+pc[0]+';border:0.5px solid '+pc[2];mcp.appendChild(pill);}
+      else{mcp.appendChild(T('div','mc-sub','Not logged'));}
+    }
     ap(mg,
       mcCard('Calories',tk+' / '+KT,kCol(kp),kp,KT-tk>0?(KT-tk)+' kcal remaining':'Target reached'),
       mcCard('Water',(f.water||0)+'L / '+WT+'L',wCol(wp),wp,WT-(f.water||0)>0?(WT-f.water)+'L to go':'Target reached'),
@@ -2408,13 +2418,13 @@ function searchFoods(query,dropdown,sInput,qtyRow,addRow){
   var queryWordCount=ql.split(/\s+/).length;
   Object.keys(INDIAN_DB_PER100).forEach(function(key){
     var keyWords=key.split(/\s+/).length;
-    // Always match if the query starts with or equals the key
-    var exactOrPrefix=ql===key||ql.startsWith(key+' ')||key.startsWith(ql);
+    // startsWith only fires when query is at most 1 word longer than the key
+    // — prevents "paneer" matching "paneer pepper fry" (3 words vs 1 word)
+    var startsWithKey=ql.startsWith(key+' ')&&queryWordCount<=keyWords+1;
+    var exactOrPrefix=ql===key||startsWithKey||key.startsWith(ql);
     // Match if key contains query (user typed part of a multi-word food name)
     var keyContainsQuery=key.indexOf(ql)>=0;
     // Only match "query contains key" when the query is not longer than the key
-    // — prevents "potato curry" matching "srilankan potato curry" (key is a
-    // subset of a more specific dish the user is searching for).
     var queryContainsKey=ql.indexOf(key)>=0&&queryWordCount<=keyWords;
     if(exactOrPrefix||keyContainsQuery||queryContainsKey){
       localResults.push({name:key.charAt(0).toUpperCase()+key.slice(1),source:'Common foods',per100:INDIAN_DB_PER100[key]});
@@ -2720,7 +2730,7 @@ function resizeImageForAI(file, callback){
   var img=new Image();
   var url=URL.createObjectURL(file);
   img.onload=function(){
-    var MAX=1024;
+    var MAX=800;
     var w=img.width,h=img.height;
     if(w>MAX||h>MAX){
       if(w>h){h=Math.round(h*MAX/w);w=MAX;}
@@ -2731,8 +2741,9 @@ function resizeImageForAI(file, callback){
     var ctx=canvas.getContext('2d');
     ctx.drawImage(img,0,0,w,h);
     URL.revokeObjectURL(url);
-    var dataUrl=canvas.toDataURL('image/jpeg',0.85);
+    var dataUrl=canvas.toDataURL('image/jpeg',0.70);
     var base64=dataUrl.split(',')[1];
+    console.log('Photo compressed: '+Math.round(base64.length/1024)+'KB ('+w+'x'+h+'px)');
     callback(base64,'image/jpeg');
   };
   img.onerror=function(){URL.revokeObjectURL(url);callback(null,null);};
@@ -3142,7 +3153,10 @@ function saveAllFood(goToDayAfter){
   var cf=document.getElementById('cf-in');
   var caff=cf?(parseInt(cf.value)||0):fCaff;
   var total=fSavedMeals.reduce(function(a,m){return a+(m.kcal||0);},0);
-  saveDay(sd,{food:{meals:fSavedMeals,kcal:total,water:fWater,caffeine:caff,protein:fProtein}},function(){
+  var totalProteinG=Math.round(fSavedMeals.reduce(function(a,m){
+    return a+(m.items?m.items.reduce(function(b,i){return b+(i.p||0);},0):0);
+  },0));
+  saveDay(sd,{food:{meals:fSavedMeals,kcal:total,water:fWater,caffeine:caff,protein:fProtein,proteinG:totalProteinG}},function(){
     if(goToDayAfter){goBack('s-day');}else{buildFoodForm();}
   });
 }
