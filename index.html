@@ -363,6 +363,7 @@ input,select,textarea{font-size:16px!important}
       <div class="topbar-title" id="day-title"></div>
     </div>
     <div class="topbar-actions">
+      <button class="topbar-back" id="day-share-btn" title="Share day summary" aria-label="Share" style="font-size:14px">↑</button>
       <button class="topbar-back" id="day-prev" title="Previous day" aria-label="Previous day">&#8249;</button>
       <button class="topbar-back" id="day-next" title="Next day" aria-label="Next day">&#8250;</button>
     </div>
@@ -514,9 +515,49 @@ var PCOLS={'Low':['var(--re)','var(--rbg)','var(--rbd)'],'Low-moderate':['var(--
 function pad(n){return n<10?'0'+n:''+n;}
 function todayKey(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 function isFutureDate(dk){return dk>todayKey();}
+function getPrevDayKey(dk){var d=new Date(dk+'T12:00:00');d.setDate(d.getDate()-1);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 
 // Moves the currently selected day by `delta` days (e.g. -1 or +1), keeping
 // the calendar's displayed month/year in sync, then re-renders the day view.
+function shareDaySummary(){
+  var d=AD[sd]||{};
+  var dateObj=new Date(sd+'T12:00:00');
+  var dlabel=DS[dateObj.getDay()]+', '+dateObj.getDate()+' '+MS[dateObj.getMonth()]+' '+dateObj.getFullYear();
+  var f=d.food||{};
+  var kcal=f.kcal||0;
+  var water=f.water||0;
+  var training=d.training||{};
+  var weight=d.weight;
+
+  var lines=['📊 Forma — '+dlabel,''];
+  if(weight) lines.push('⚖️ Weight: '+weight+'kg');
+  if(training.status==='done'){
+    lines.push('💪 Training: Completed'+(training.kcal?' ('+training.kcal+' kcal burned)':''));
+  } else if(training.status==='rest'){
+    lines.push('😴 Training: Rest day');
+  } else if(training.status==='skip'){
+    lines.push('❌ Training: Skipped');
+  }
+  if(kcal) lines.push('🍽️ Calories: '+kcal+' / '+KT+' kcal ('+(Math.round(kcal/KT*100))+'%)');
+  if(water) lines.push('💧 Water: '+water+'L / '+WT+'L');
+  if(f.protein) lines.push('🥩 Protein: '+f.protein);
+  lines.push('');
+  lines.push('Tracked with Forma · hvenkat1.github.io/dashboard');
+
+  var text=lines.join('\n');
+
+  if(navigator.share){
+    navigator.share({title:'My Day — Forma',text:text}).catch(function(){});
+  } else {
+    // Fallback: copy to clipboard
+    navigator.clipboard&&navigator.clipboard.writeText(text).then(function(){
+      showToast('Summary copied to clipboard');
+    }).catch(function(){
+      showToast('Share not supported on this browser');
+    });
+  }
+}
+
 function shiftDay(delta){
   var d=new Date(sd+'T12:00:00');
   d.setDate(d.getDate()+delta);
@@ -554,6 +595,7 @@ function getMealTypeByTime(){
   return 'Drinks'; // late night
 }
 var fMealType=getMealTypeByTime(),fItems=[],fSavedMeals=[],fWater=0,fProtein='',fCaff=0;
+var recentFoods=[]; // last 10 unique foods logged, loaded from Firestore on sign-in
 var fLookupResult=null;
 var fSelectedFood=null;  // {name, per100} once a search result is chosen
 var fSearchTimer=null;
@@ -1057,6 +1099,36 @@ function loadAll(){
     renderCal();
   }).catch(function(e){console.error('FB:',e);});
 }
+// ── RECENT FOODS ─────────────────────────────────────────────────────────
+// Keeps a rolling list of the last 10 unique foods the user has logged.
+// Stored in Firestore so it persists across devices and sessions.
+function trackRecentFood(item){
+  if(!item||!item.n)return;
+  // Store the food's name and per100 data so it can be re-added quickly
+  var entry={
+    n:item._foodName||item.n.replace(/ \(.*\)$/,''),
+    per100:item._per100||{k:item.k,p:item.p,c:item.c,fat:item.fat},
+    lastUsed:Date.now()
+  };
+  // Remove duplicate if exists
+  recentFoods=recentFoods.filter(function(f){return f.n!==entry.n;});
+  recentFoods.unshift(entry);
+  recentFoods=recentFoods.slice(0,10); // keep last 10
+  // Persist to Firestore
+  var user=auth.currentUser;
+  if(user){
+    db.collection('users').doc(user.uid).collection('profile').doc('recentFoods')
+      .set({foods:recentFoods}).catch(function(){});
+  }
+}
+
+function loadRecentFoods(uid){
+  db.collection('users').doc(uid).collection('profile').doc('recentFoods')
+    .get().then(function(doc){
+      if(doc.exists&&doc.data().foods)recentFoods=doc.data().foods;
+    }).catch(function(){});
+}
+
 function saveDay(dk,data,cb){
   var ref=daysRef();
   if(!ref){showToast('Not signed in');return;}
@@ -1113,11 +1185,40 @@ function renderDayView(){
 
   var prevBtn=document.getElementById('day-prev');
   var nextBtn=document.getElementById('day-next');
+  var shareBtn=document.getElementById('day-share-btn');
   if(prevBtn) prevBtn.onclick=function(){ shiftDay(-1); };
   if(nextBtn) nextBtn.onclick=function(){ shiftDay(1); };
+  if(shareBtn) shareBtn.onclick=function(){ shareDaySummary(); };
 
   var body=document.getElementById('day-body');
   body.innerHTML='';
+
+  // ── MORNING WEIGHT PROMPT ────────────────────────────────────────────────
+  // Show a gentle nudge to log weight if: it's today, before noon, and no
+  // weight logged yet. Disappears once weight is logged.
+  var isToday=sd===todayKey();
+  var hour=new Date().getHours();
+  if(isToday&&hour<14&&!d.weight){
+    var wPrompt=D('');
+    wPrompt.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bbg);border:0.5px solid var(--bbd);border-radius:9px;margin-bottom:10px';
+    var wIcon=T('span','','⚖️');wIcon.style.fontSize='18px';
+    var wText=T('div','','Log your morning weight');
+    wText.style.cssText='flex:1;font-size:13px;font-weight:600;color:var(--tx)';
+    var wInput=E('input','');
+    wInput.type='number';wInput.placeholder='kg';wInput.step='0.1';wInput.min='30';wInput.max='200';
+    wInput.style.cssText='width:64px;padding:6px 8px;border:1.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);text-align:center';
+    var wSave=Btn('btn-sm','Save',function(){
+      var val=parseFloat(wInput.value);
+      if(!val||val<30||val>200){showToast('Enter a valid weight');return;}
+      saveDay(sd,{weight:val},function(){
+        showToast('Weight saved');
+        renderDayView();
+      });
+    });
+    wSave.style.cssText='background:var(--accent);color:#fff;border-color:var(--accent)';
+    ap(wPrompt,wIcon,wText,wInput,wSave);
+    body.appendChild(wPrompt);
+  }
 
   // ── DAILY INSIGHT (top of page) ──────────────────────────────────────────
   var hasAnyData=d.training||d.food||d.weight;
@@ -1224,6 +1325,27 @@ function renderDayView(){
   var fb=D('card-body');
   var f=d.food||{};
   var meals=dedupeMealsByName(f.meals||[]);
+
+  // Copy yesterday's meals — shown when nothing logged today yet
+  if(!meals.length&&!isFutureDate(sd)){
+    var ydk=getPrevDayKey(sd);
+    var yd=AD[ydk]||{};
+    var yMeals=yd.food&&yd.food.meals&&yd.food.meals.length;
+    if(yMeals){
+      var copyBtn=Btn('btn-out','Copy yesterday\'s meals',function(){
+        var copy=JSON.parse(JSON.stringify(yd.food.meals));
+        var existingFood=AD[sd]&&AD[sd].food?JSON.parse(JSON.stringify(AD[sd].food)):{};
+        existingFood.meals=copy;
+        existingFood.kcal=copy.reduce(function(a,m){return a+(m.kcal||0);},0);
+        saveDay(sd,{food:existingFood},function(){
+          showToast('Yesterday\'s meals copied');
+          renderDayView();
+        });
+      });
+      copyBtn.style.cssText='font-size:12px;margin-bottom:10px;width:100%';
+      fb.appendChild(copyBtn);
+    }
+  }
   if(meals.length){
     var tk=meals.reduce(function(a,m){return a+(m.kcal||0);},0);
     var kp=pct(tk,KT),wp=pct(f.water||0,WT),cp=pct(f.caffeine||0,CT);
@@ -1716,11 +1838,40 @@ function buildFoodForm(){
   var photoResultArea=D('');photoResultArea.id='photo-result-area';
   body.appendChild(photoResultArea);
 
+  // Recent foods — shown immediately below search when field is empty
+  if(recentFoods.length>0){
+    var recentSection=D('');recentSection.id='recent-foods-section';
+    recentSection.appendChild(T('div','slbl','Recently logged'));
+    var recentList=D('');
+    recentFoods.slice(0,5).forEach(function(rf){
+      var row=D('lookup-result');
+      row.style.cssText='cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 10px';
+      var nameEl=T('div','lr-name',rf.n);
+      var kcalEl=T('div','',rf.per100?rf.per100.k+' kcal/100g':'');
+      kcalEl.style.cssText='font-size:11px;color:var(--mu)';
+      row.appendChild(nameEl);row.appendChild(kcalEl);
+      row.addEventListener('click',function(){
+        fSelectedFood={name:rf.n,per100:rf.per100||{k:0,p:0,c:0,fat:0,kind:'g'}};
+        sInput.value=rf.n;
+        recentSection.style.display='none';
+        qtyRow.style.display='grid';
+        addRow.style.display='block';
+        var qtyIn=document.getElementById('food-qty-input');
+        var unitSel=document.getElementById('food-unit-select');
+        if(unitSel)unitSel.value=rf.per100&&rf.per100.piece_g?'piece':rf.per100&&rf.per100.kind==='ml'?'ml':'g';
+        if(qtyIn){qtyIn.focus();qtyIn.select();}
+      });
+      recentList.appendChild(row);
+    });
+    recentSection.appendChild(recentList);
+    body.appendChild(recentSection);
+  }
+
   fileIn.addEventListener('change',function(){
     var file=fileIn.files&&fileIn.files[0];
     if(!file)return;
     handleFoodPhoto(file,photoResultArea,qtyRow,addRow,sInput,dropdown);
-    fileIn.value=''; // reset so same photo can be re-selected if needed
+    fileIn.value='';
   });
 
   sInput.addEventListener('input',function(){
@@ -1728,6 +1879,9 @@ function buildFoodForm(){
     qtyRow.style.display='none';
     addRow.style.display='none';
     var q=sInput.value.trim();
+    // Hide recent foods when user starts typing
+    var rs=document.getElementById('recent-foods-section');
+    if(rs)rs.style.display=q.length?'none':'block';
     if(fSearchTimer)clearTimeout(fSearchTimer);
     if(q.length<2){dropdown.style.display='none';dropdown.innerHTML='';return;}
     // 600ms debounce — long enough that the user has likely finished typing
@@ -2849,18 +3003,20 @@ function addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow){
   var ratio=baseQty/100;
   var unitLabel=unit==='kg'?'kg':unit==='l'?'L':unit==='piece'?(qty===1?'piece':'pieces'):unit;
 
-  fItems.push({
+  var newItem={
     n:fSelectedFood.name+' ('+qty+' '+unitLabel+')',
     k:Math.round(per100.k*ratio),
     p:Math.round(per100.p*ratio*10)/10,
     c:Math.round(per100.c*ratio*10)/10,
     fat:Math.round(per100.fat*ratio*10)/10,
     caff:Math.round((per100.caff||0)*ratio),
-    _per100:per100,   // stored for editing
+    _per100:per100,
     _qty:qty,
     _unit:unit,
     _foodName:fSelectedFood.name
-  });
+  };
+  fItems.push(newItem);
+  trackRecentFood(newItem);
 
   fSelectedFood=null;
   sInput.value='';
@@ -3783,6 +3939,7 @@ auth.onAuthStateChanged(function(user) {
         aiProvider = 'anthropic';
       }
       anthropicKey = aiKeys.anthropic;
+      loadRecentFoods(user.uid);
       clearTimeout(authTimeoutId);
       seedAndLoad();
     }).catch(function() {
