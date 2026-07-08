@@ -1855,10 +1855,13 @@ function buildFoodForm(){
   var photoResultArea=D('');photoResultArea.id='photo-result-area';
   body.appendChild(photoResultArea);
 
-  // Recent foods — shown immediately below search when field is empty
-  if(recentFoods.length>0){
+  // Recently logged — only show when nothing is in progress (no items in
+  // current meal, no food selected, search field empty). Hides the moment
+  // the user selects a food or starts building a meal.
+  if(recentFoods.length>0&&fItems.length===0){
     var recentSection=D('');recentSection.id='recent-foods-section';
-    recentSection.appendChild(T('div','slbl','Recently logged'));
+    var recentHdr=T('div','slbl','Recently logged');
+    recentSection.appendChild(recentHdr);
     var recentList=D('');
     recentFoods.slice(0,5).forEach(function(rf){
       var row=D('lookup-result');
@@ -2067,7 +2070,15 @@ function buildFoodForm(){
   }
 
   if(fSavedMeals.length){
-    body.appendChild(T('div','slbl','Saved meals today'));
+    // Clear visual divider between "add food" zone and logged meals
+    var divider=D('');
+    divider.style.cssText='display:flex;align-items:center;gap:10px;margin:16px 0 12px';
+    var line1=D('');line1.style.cssText='flex:1;height:1px;background:var(--bd)';
+    var divLbl=T('span','','SAVED MEALS TODAY');
+    divLbl.style.cssText='font-size:10px;font-weight:700;color:var(--mu);letter-spacing:.06em;white-space:nowrap';
+    var line2=D('');line2.style.cssText='flex:1;height:1px;background:var(--bd)';
+    divider.appendChild(line1);divider.appendChild(divLbl);divider.appendChild(line2);
+    body.appendChild(divider);
     fSavedMeals.forEach(function(m,mi){
       var mv=D('meal-view');
       var mh=D('meal-hdr');ap(mh,T('span','meal-nm',m.name),T('span','meal-kc',(m.kcal||0)+' kcal'));
