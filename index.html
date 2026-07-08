@@ -2507,8 +2507,18 @@ function tryUsdaLookup(query,gen,dropdown,sInput,qtyRow,addRow){
           });
         });
       }
-      if(results.length>0){
-        renderFoodDropdown(results,dropdown,sInput,qtyRow,addRow);
+      // Relevance check — USDA sometimes returns completely unrelated results
+      // for Indian/regional food names (e.g. "sambar" for "vatha kuzhambu").
+      // Only keep results that share at least one meaningful word (4+ chars)
+      // with the query, otherwise fall through to Gemini.
+      var queryWords=query.toLowerCase().split(/\s+/).filter(function(w){return w.length>=4;});
+      var relevantResults=results.filter(function(r){
+        var rname=r.name.toLowerCase();
+        return queryWords.some(function(w){return rname.indexOf(w)>=0;});
+      });
+
+      if(relevantResults.length>0){
+        renderFoodDropdown(relevantResults,dropdown,sInput,qtyRow,addRow);
       } else {
         tryAiFoodLookup(query,gen,dropdown,sInput,qtyRow,addRow);
       }
