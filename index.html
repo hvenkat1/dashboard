@@ -1790,6 +1790,9 @@ function buildFoodForm(){
       fMealType=mt;
       mtRow.querySelectorAll('.mt-btn').forEach(function(bb){bb.classList.remove('on');});
       b.classList.add('on');
+      // Update add button label to reflect new meal type
+      var addBtn=document.getElementById('food-qty-add-btn');
+      if(addBtn)addBtn.textContent='Add to '+fMealType;
     });
     if(fMealType===mt)b.classList.add('on');
     mtRow.appendChild(b);
@@ -1946,9 +1949,10 @@ function buildFoodForm(){
   body.appendChild(pieceHint);
 
   var addRow=D('');addRow.style.cssText='display:none;margin-top:8px';
-  var addToMealBtn=Btn('btn-green','Add to meal',function(){
+  var addToMealBtn=Btn('btn-green','Add to '+fMealType,function(){
     addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow);
   });
+  addToMealBtn.id='food-qty-add-btn';
   addRow.appendChild(addToMealBtn);
   body.appendChild(addRow);
 
@@ -2027,10 +2031,6 @@ function buildFoodForm(){
     totalRow.appendChild(T('div','text-bold','Total'));
     var tv=T('div','text-bold',totalKc+' kcal');tv.style.color='var(--bl)';
     totalRow.appendChild(tv);body.appendChild(totalRow);
-    body.appendChild(Btn('btn','Save meal - '+fMealType,saveMeal));
-    var saveHint=T('div','','Or just tap "Save food log" at the bottom — these items are included either way.');
-    saveHint.style.cssText='font-size:10px;color:var(--mu);margin-top:6px;line-height:1.4';
-    body.appendChild(saveHint);
     body.appendChild(T('div','','\u00a0'));
   }
 
@@ -2082,7 +2082,10 @@ function buildFoodForm(){
     fSavedMeals.forEach(function(m,mi){
       var mv=D('meal-view');
       var mh=D('meal-hdr');ap(mh,T('span','meal-nm',m.name),T('span','meal-kc',(m.kcal||0)+' kcal'));
-      var rmBtn=Btn('btn-sm','Remove meal',function(){fSavedMeals.splice(mi,1);saveAllFood(false);});
+      var rmBtn=Btn('btn-sm','Remove meal',function(){
+        if(!confirm('Remove the entire '+m.name+' meal? This can\'t be undone.'))return;
+        fSavedMeals.splice(mi,1);saveAllFood(false);
+      });
       rmBtn.style.cssText='padding:2px 8px;font-size:10px';
       mh.appendChild(rmBtn);mv.appendChild(mh);
       if(m.items&&m.items.length){
@@ -2135,8 +2138,9 @@ function buildFoodForm(){
               setTimeout(function(){qIn.focus();qIn.select();},50);
             };
           })(mi,ii,wrapper));
-          var delBtn=Btn('mi-del','✕',(function(mIdx,iIdx){
+          var delBtn=Btn('mi-del','✕',(function(mIdx,iIdx,iName){
             return function(){
+              if(!confirm('Remove "'+iName+'"?'))return;
               fSavedMeals[mIdx].items.splice(iIdx,1);
               if(fSavedMeals[mIdx].items.length===0){
                 fSavedMeals.splice(mIdx,1);
@@ -2145,7 +2149,7 @@ function buildFoodForm(){
               }
               saveAllFood(false);
             };
-          })(mi,ii));
+          })(mi,ii,it.n.replace(/ \(.*\)$/,'')));
           ap(miEl,mn,mk,editBtn,delBtn);
           wrapper.appendChild(miEl);
           mb.appendChild(wrapper);
@@ -2222,7 +2226,10 @@ function buildFoodForm(){
   });
   body.appendChild(pbtns);
 
-  body.appendChild(Btn('btn btn-gap','Save food log',function(){saveAllFood(true);}));
+  // Single smart button at the bottom — always goes back to My Day
+  // Everything is already saved in real-time as items are added/edited/removed
+  var doneBtn=Btn('btn btn-gap','Done — back to My Day',function(){goBack('s-day');});
+  body.appendChild(doneBtn);
 }
 
 // Built-in Indian dishes, scoped to a per-100g/100ml reference so they can be
@@ -3089,7 +3096,9 @@ function addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow){
     _unit:unit,
     _foodName:fSelectedFood.name
   };
-  fItems.push(newItem);
+
+  // Add directly to saved meals — no intermediate fItems draft
+  mergeItemsIntoMeal(fMealType,[newItem]);
   trackRecentFood(newItem);
 
   fSelectedFood=null;
@@ -3098,7 +3107,9 @@ function addSelectedFoodToMeal(qtyIn,unitSel,sInput,dropdown,qtyRow,addRow){
   dropdown.style.display='none';
   qtyRow.style.display='none';
   addRow.style.display='none';
-  buildFoodForm();
+
+  // Save immediately to Firestore
+  saveAllFood(false);
 }
 
 
