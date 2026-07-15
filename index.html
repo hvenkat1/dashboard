@@ -2228,7 +2228,7 @@ function buildFoodForm(){
 
   // Single smart button at the bottom — always goes back to My Day
   // Everything is already saved in real-time as items are added/edited/removed
-  var doneBtn=Btn('btn btn-gap','Done — back to My Day',function(){goBack('s-day');});
+  var doneBtn=Btn('btn btn-gap','Done',function(){goBack('s-day');});
   body.appendChild(doneBtn);
 }
 
@@ -2563,39 +2563,88 @@ function openBarcodeScanner(resultArea,qtyRow,addRow,sInput,dropdown){
   modal.style.display='flex';
   status.textContent='Starting camera...';
 
-  // ZXing is loaded as a UMD bundle — the module is at ZXing.BrowserMultiFormatReader
   try{
     if(!window.ZXing){
       status.textContent='Barcode library not loaded. Check your connection and try again.';
       return;
     }
-    barcodeReader=new window.ZXing.BrowserMultiFormatReader();
+    // Use hints to prioritize EAN-13/EAN-8 which Indian products use —
+    // scanning all formats causes misreads on similar-looking barcodes.
+    var hints=new Map();
+    var formats=[
+      window.ZXing.BarcodeFormat.EAN_13,
+      window.ZXing.BarcodeFormat.EAN_8,
+      window.ZXing.BarcodeFormat.UPC_A,
+      window.ZXing.BarcodeFormat.UPC_E,
+      window.ZXing.BarcodeFormat.CODE_128
+    ];
+    hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+    barcodeReader=new window.ZXing.BrowserMultiFormatReader(hints);
   } catch(e){
-    status.textContent='Barcode scanner unavailable on this device.';
-    return;
+    barcodeReader=new window.ZXing.BrowserMultiFormatReader();
   }
 
   closeBtn.onclick=function(){ closeBarcodeScanner(); };
 
+  // Add manual entry fallback in the status bar
+  var manualEntryShown=false;
+  var scanTimeout=setTimeout(function(){
+    if(!manualEntryShown){
+      manualEntryShown=true;
+      status.innerHTML='Having trouble? <span id="manual-barcode-link" style="color:#ff5a36;font-weight:600;cursor:pointer;text-decoration:underline">Enter barcode manually</span>';
+      document.getElementById('manual-barcode-link').addEventListener('click',function(){
+        closeBarcodeScanner();
+        var code=prompt('Enter the barcode number from the product:');
+        if(code&&code.trim()){
+          lookupBarcode(code.trim(),resultArea,qtyRow,addRow,sInput,dropdown);
+        }
+      });
+    }
+  },8000); // show manual entry after 8 seconds of no scan
+
   barcodeReader.listVideoInputDevices().then(function(devices){
     if(!devices||!devices.length){
       status.textContent='No camera found.';
+      clearTimeout(scanTimeout);
       return;
     }
-    // Prefer back camera on mobile
     var device=devices.find(function(d){return /back|rear|environment/i.test(d.label);})||devices[devices.length-1];
-    status.textContent='Point at a barcode — hold steady';
 
-    barcodeReader.decodeFromVideoDevice(device.deviceId, video, function(result,err){
+    // Request high resolution + continuous autofocus for better barcode reading
+    var constraints={
+      deviceId:device.deviceId?{exact:device.deviceId}:undefined,
+      facingMode:'environment',
+      width:{ideal:1920},
+      height:{ideal:1080},
+      focusMode:'continuous'
+    };
+
+    barcodeReader.decodeFromConstraints({video:constraints}, video, function(result,err){
       if(result){
+        clearTimeout(scanTimeout);
         var barcode=result.getText();
-        closeBarcodeScanner();
-        lookupBarcode(barcode,resultArea,qtyRow,addRow,sInput,dropdown);
+        status.textContent='✓ Found: '+barcode;
+        setTimeout(function(){
+          closeBarcodeScanner();
+          lookupBarcode(barcode,resultArea,qtyRow,addRow,sInput,dropdown);
+        },200);
       }
-      // err fires on every frame that isn't a barcode — that's normal, ignore
     });
   }).catch(function(e){
-    status.textContent='Camera permission denied — please allow camera access.';
+    // Fall back to basic device selection if constraints fail
+    barcodeReader.listVideoInputDevices().then(function(devices){
+      if(!devices||!devices.length){status.textContent='No camera found.';return;}
+      var device=devices.find(function(d){return /back|rear|environment/i.test(d.label);})||devices[devices.length-1];
+      status.textContent='Point camera at barcode — hold steady';
+      barcodeReader.decodeFromVideoDevice(device.deviceId, video, function(result,err){
+        if(result){
+          clearTimeout(scanTimeout);
+          closeBarcodeScanner();
+          lookupBarcode(result.getText(),resultArea,qtyRow,addRow,sInput,dropdown);
+        }
+      });
+    });
   });
 }
 
@@ -2690,6 +2739,22 @@ function showBarcodeResult(p,resultArea,qtyRow,addRow,sInput,dropdown){
   var brand=p.brands?p.brands.split(',')[0]:'';
   if(brand&&!name.toLowerCase().includes(brand.toLowerCase()))name+=' ('+brand+')';
   var source=p._source||'Barcode scan';
+
+  // If nutrition data is missing, use the product name to ask Gemini for an estimate
+  // rather than showing 0 kcal which is useless.
+  if(!kcal&&aiKeys[aiProvider]){
+    resultArea.innerHTML='';
+    var loading=D('loading');
+    loading.appendChild(D('spinner'));
+    loading.appendChild(T('span','','Found "'+name+'" — asking AI for nutrition estimate...'));
+    resultArea.appendChild(loading);
+    // Temporarily set fSelectedFood so tryAiFoodLookup can work
+    var fakeDropdown={innerHTML:'',style:{display:'none'},appendChild:function(el){resultArea.innerHTML='';resultArea.appendChild(el);}};
+    var gen=++fSearchGeneration;
+    tryAiFoodLookup(name,gen,fakeDropdown,null,qtyRow,addRow);
+    sInput.value=name;
+    return;
+  }
 
   sInput.value=name;
   fSelectedFood={
