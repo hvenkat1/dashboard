@@ -1983,72 +1983,6 @@ function buildFoodForm(){
 
   var resultArea=D('');resultArea.id='lookup-area';body.appendChild(resultArea);
 
-  if(fItems.length){
-    body.appendChild(T('div','slbl','Items in this meal'));
-    var itemsDiv=D('');itemsDiv.id='items-div';
-    fItems.forEach(function(it,i){
-      var wrapper=D('');
-      var mi=D('mi');
-      var mn=D('mi-n');mn.textContent=it.n+(it.p?' (P:'+Math.round(it.p)+'g C:'+Math.round(it.c||0)+'g F:'+Math.round(it.fat||0)+'g)':'');
-      var mk=T('span','mi-k',it.k+' kcal');
-      // Edit button — pencil icon
-      var editBtn=Btn('mi-edit','Edit',(function(idx,wrp){
-        return function(){
-          // Toggle inline edit row
-          var existing=wrp.querySelector('.item-edit-row');
-          if(existing){wrp.removeChild(existing);return;}
-          var editRow=D('item-edit-row');
-          editRow.style.cssText='display:grid;grid-template-columns:1fr auto auto;gap:6px;padding:6px 0;align-items:center';
-          var qIn=E('input','');qIn.type='number';qIn.min='0.1';qIn.step='0.1';
-          qIn.value=fItems[idx]._qty||'';
-          qIn.style.cssText='padding:7px 10px;border:1.5px solid var(--accent);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);width:80px';
-          var uSel=E('select','');
-          [['g','g'],['ml','ml'],['piece','pc'],['kg','kg'],['l','L']].forEach(function(opt){
-            var o=E('option');o.value=opt[0];o.textContent=opt[1];uSel.appendChild(o);
-          });
-          uSel.value=fItems[idx]._unit||'g';
-          uSel.style.cssText='padding:7px 8px;border:1.5px solid var(--bd);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx)';
-          var saveEdit=Btn('btn-green','✓',function(){
-            var newQty=parseFloat(qIn.value);
-            if(!newQty||newQty<=0){showToast('Enter a valid quantity');return;}
-            var newUnit=uSel.value;
-            var per100=fItems[idx]._per100||{k:0,p:0,c:0,fat:0,caff:0};
-            var baseQty=unitToGramsOrMl(newQty,newUnit,per100);
-            var ratio=baseQty/100;
-            var unitLabel=newUnit==='kg'?'kg':newUnit==='l'?'L':newUnit==='piece'?(newQty===1?'piece':'pieces'):newUnit;
-            var foodName=fItems[idx]._foodName||fItems[idx].n.replace(/ \(.*\)$/,'');
-            fItems[idx]={
-              n:foodName+' ('+newQty+' '+unitLabel+')',
-              k:Math.round(per100.k*ratio),
-              p:Math.round(per100.p*ratio*10)/10,
-              c:Math.round(per100.c*ratio*10)/10,
-              fat:Math.round(per100.fat*ratio*10)/10,
-              caff:Math.round((per100.caff||0)*ratio),
-              _per100:per100,_qty:newQty,_unit:newUnit,_foodName:foodName
-            };
-            buildFoodForm();
-          });
-          saveEdit.style.cssText='padding:7px 12px;font-size:14px';
-          ap(editRow,qIn,uSel,saveEdit);
-          wrp.appendChild(editRow);
-          setTimeout(function(){qIn.focus();qIn.select();},50);
-        };
-      })(i,wrapper));
-      editBtn.title='Edit quantity';
-      var del=Btn('mi-del','✕',function(){fItems.splice(i,1);buildFoodForm();});
-      ap(mi,mn,mk,editBtn,del);
-      wrapper.appendChild(mi);
-      itemsDiv.appendChild(wrapper);
-    });
-    body.appendChild(itemsDiv);
-    var totalRow=D('row-flex');totalRow.style.cssText='padding:8px 0;border-top:0.5px solid var(--bd);margin-bottom:4px';
-    var totalKc=fItems.reduce(function(a,i){return a+i.k;},0);
-    totalRow.appendChild(T('div','text-bold','Total'));
-    var tv=T('div','text-bold',totalKc+' kcal');tv.style.color='var(--bl)';
-    totalRow.appendChild(tv);body.appendChild(totalRow);
-    body.appendChild(T('div','','\u00a0'));
-  }
-
   // From yesterday — show yesterday's meals as copyable cards, per meal
   var ydk=getPrevDayKey(sd);
   var yd=AD[ydk]||{};
@@ -2243,7 +2177,9 @@ function buildFoodForm(){
 
   // Single smart button at the bottom — always goes back to My Day
   // Everything is already saved in real-time as items are added/edited/removed
-  var doneBtn=Btn('btn btn-gap','Done',function(){goBack('s-day');});
+  var doneBtn=Btn('btn btn-gap','Save & Done',function(){
+    saveAllFood(true);
+  });
   body.appendChild(doneBtn);
 }
 
@@ -3150,12 +3086,12 @@ function sendPhotoToAI(base64, mimeType, key, resultArea, qtyRow, addRow, sInput
           card.appendChild(qRow);
           qtyInputs.push(qIn);
 
-          // Add button — marks this card as added inline, no page rebuild
+          // Add button — saves directly to fSavedMeals, no page rebuild
           var addBtn=Btn('btn-green','Add to meal',function(){
             if(addBtn.disabled)return;
             var q=parseFloat(qIn.value)||pi.qty_g;
             var ratio=q/100;
-            fItems.push({
+            mergeItemsIntoMeal(fMealType,[{
               n:pi.name+' (~'+q+'g)',
               k:Math.round(pi.kcal100*ratio),
               p:Math.round(pi.prot100*ratio*10)/10,
@@ -3164,7 +3100,8 @@ function sendPhotoToAI(base64, mimeType, key, resultArea, qtyRow, addRow, sInput
               caff:0,
               _per100:{k:pi.kcal100,p:pi.prot100,c:pi.carb100,fat:pi.fat100},
               _qty:q,_unit:'g',_foodName:pi.name
-            });
+            }]);
+            saveAllFood(false);
             addBtn.textContent='Added ✓';
             addBtn.disabled=true;
             addBtn.style.cssText='opacity:0.5;cursor:default';
@@ -3443,7 +3380,11 @@ function showManualEntry(area,query){
     var cb=document.getElementById('man-carb');
     var ft=document.getElementById('man-fat');
     if(!nm||!nm.value.trim()||!kc||!kc.value){showToast('Enter at least a name and kcal');return;}
-    fItems.push({n:nm.value.trim(),k:parseInt(kc.value)||0,p:parseFloat(pr&&pr.value?pr.value:0),c:parseFloat(cb&&cb.value?cb.value:0),fat:parseFloat(ft&&ft.value?ft.value:0)});
+    var newItem={n:nm.value.trim(),k:parseInt(kc.value)||0,p:parseFloat(pr&&pr.value?pr.value:0),c:parseFloat(cb&&cb.value?cb.value:0),fat:parseFloat(ft&&ft.value?ft.value:0)};
+    console.log('Manual entry:', newItem, 'fMealType:', fMealType);
+    mergeItemsIntoMeal(fMealType,[newItem]);
+    console.log('fSavedMeals after merge:', JSON.stringify(fSavedMeals));
+    saveAllFood(false);
     var inp=document.getElementById('food-search-input');if(inp)inp.value='';
     area.innerHTML='';buildFoodForm();
   });
