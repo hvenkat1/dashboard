@@ -1789,6 +1789,7 @@ function buildFoodForm(){
     summaryTitle.style.cssText='display:flex;flex-direction:column;gap:2px';
     var sofarLbl=T('div','card-title','Today so far');
     var sofarKcal=T('div','','');
+    sofarKcal.id='food-summary-kcal';
     sofarKcal.style.cssText='font-size:22px;font-weight:800;color:var(--accent)';
     sofarKcal.textContent=totalKcal+' kcal';
     summaryTitle.appendChild(sofarLbl);
@@ -1796,21 +1797,24 @@ function buildFoodForm(){
     summaryHdr.appendChild(summaryTitle);
     summaryCard.appendChild(summaryHdr);
     var summaryBody=D('card-body');
+    var summaryList=D('');summaryList.id='food-summary-list';
     fSavedMeals.forEach(function(m){
       var mrow=D('');mrow.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bd)';
       var mlbl=T('span','',m.name||'Meal');mlbl.style.cssText='font-size:13px;font-weight:600;color:var(--tx)';
       var mkcal=T('span','',(m.kcal||0)+' kcal');mkcal.style.cssText='font-size:12px;color:var(--mu)';
       mrow.appendChild(mlbl);mrow.appendChild(mkcal);
-      summaryBody.appendChild(mrow);
+      summaryList.appendChild(mrow);
     });
+    summaryBody.appendChild(summaryList);
     // Target progress bar
     var pct=Math.min(100,Math.round(totalKcal/KT*100));
     var pbar=D('');pbar.style.cssText='margin-top:10px';
     var pbarlbl=D('');pbarlbl.style.cssText='display:flex;justify-content:space-between;font-size:10px;color:var(--mu);margin-bottom:3px';
     pbarlbl.appendChild(T('span','','vs '+KT+' kcal target'));
-    pbarlbl.appendChild(T('span','',pct+'%'));
+    var pctSpan=T('span','',pct+'%');pctSpan.id='food-summary-pct';
+    pbarlbl.appendChild(pctSpan);
     var ptrack=D('');ptrack.style.cssText='height:5px;background:var(--bd);border-radius:3px;overflow:hidden';
-    var pfill=D('');pfill.style.cssText='height:100%;width:'+pct+'%;background:'+(pct>=100?'var(--gr)':pct>=70?'var(--am)':'var(--accent)')+';border-radius:3px';
+    var pfill=D('');pfill.id='food-summary-bar';pfill.style.cssText='height:100%;width:'+pct+'%;background:'+(pct>=100?'var(--gr)':pct>=70?'var(--am)':'var(--accent)')+';border-radius:3px';
     ptrack.appendChild(pfill);
     pbar.appendChild(pbarlbl);pbar.appendChild(ptrack);
     summaryBody.appendChild(pbar);
@@ -2359,6 +2363,46 @@ var INDIAN_DB_PER100={
   'sugarcane juice':{k:60,p:0.2,c:15,fat:0,kind:'ml'},
   'protein shake':{k:400,p:80,c:17,fat:7,kind:'g'},
   'water':{k:0,p:0,c:0,fat:0,kind:'ml'},
+  // Alcoholic beverages — per 100ml
+  'beer':{k:43,p:0.5,c:3.6,fat:0,kind:'ml'},
+  'lager':{k:43,p:0.5,c:3.6,fat:0,kind:'ml'},
+  'strong beer':{k:60,p:0.5,c:5,fat:0,kind:'ml'},
+  'kingfisher beer':{k:43,p:0.5,c:3.5,fat:0,kind:'ml'},
+  'heineken':{k:42,p:0.3,c:3.2,fat:0,kind:'ml'},
+  'white wine':{k:82,p:0.1,c:2.6,fat:0,kind:'ml'},
+  'red wine':{k:85,p:0.1,c:2.6,fat:0,kind:'ml'},
+  'rose wine':{k:70,p:0.1,c:2.5,fat:0,kind:'ml'},
+  'prosecco':{k:67,p:0.3,c:1.5,fat:0,kind:'ml'},
+  'champagne':{k:76,p:0.3,c:3.2,fat:0,kind:'ml'},
+  'whiskey':{k:250,p:0,c:0,fat:0,kind:'ml'},
+  'whisky':{k:250,p:0,c:0,fat:0,kind:'ml'},
+  'scotch':{k:250,p:0,c:0,fat:0,kind:'ml'},
+  'bourbon':{k:240,p:0,c:0,fat:0,kind:'ml'},
+  'vodka':{k:231,p:0,c:0,fat:0,kind:'ml'},
+  'rum':{k:231,p:0,c:0,fat:0,kind:'ml'},
+  'gin':{k:263,p:0,c:0,fat:0,kind:'ml'},
+  'tequila':{k:231,p:0,c:0,fat:0,kind:'ml'},
+  'brandy':{k:231,p:0,c:0,fat:0,kind:'ml'},
+  'port wine':{k:156,p:0.1,c:12,fat:0,kind:'ml'},
+  // Cocktails — per 100ml
+  'old fashioned':{k:154,p:0,c:4,fat:0,kind:'ml'},
+  'mojito':{k:97,p:0,c:12,fat:0,kind:'ml'},
+  'margarita':{k:160,p:0,c:11,fat:0,kind:'ml'},
+  'cosmopolitan':{k:150,p:0,c:14,fat:0,kind:'ml'},
+  'negroni':{k:180,p:0,c:5,fat:0,kind:'ml'},
+  'pina colada':{k:245,p:1,c:32,fat:5,kind:'ml'},
+  'daiquiri':{k:122,p:0,c:14,fat:0,kind:'ml'},
+  'long island iced tea':{k:167,p:0,c:7,fat:0,kind:'ml'},
+  'bloody mary':{k:80,p:1,c:8,fat:0,kind:'ml'},
+  'gin and tonic':{k:83,p:0,c:7,fat:0,kind:'ml'},
+  'vodka tonic':{k:83,p:0,c:7,fat:0,kind:'ml'},
+  'rum and coke':{k:100,p:0,c:11,fat:0,kind:'ml'},
+  'whiskey sour':{k:120,p:0,c:10,fat:0,kind:'ml'},
+  'aperol spritz':{k:78,p:0,c:8,fat:0,kind:'ml'},
+  'sangria':{k:95,p:0.3,c:10,fat:0,kind:'ml'},
+  'whiskey soda':{k:75,p:0,c:0,fat:0,kind:'ml'},
+  'vodka lime soda':{k:55,p:0,c:3,fat:0,kind:'ml'},
+  'kingfisher strong':{k:55,p:0.5,c:4.5,fat:0,kind:'ml'},
   // Nuts & misc
   'peanuts':{k:567,p:26,c:16,fat:49,kind:'g'},
   'almonds':{k:579,p:21,c:22,fat:50,kind:'g'},
@@ -3142,8 +3186,13 @@ function tryAiFoodLookup(query,gen,dropdown,sInput,qtyRow,addRow){
     renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
     return;
   }
-  if(isAiThrottled(8000)){
-    renderFoodDropdown([],dropdown,sInput,qtyRow,addRow);
+  if(isAiThrottled(5000)){
+    dropdown.innerHTML='';
+    var throttleMsg=D('food-dd-empty');
+    throttleMsg.textContent='Please wait a few seconds before searching again...';
+    throttleMsg.style.cssText='color:var(--mu);font-style:italic';
+    dropdown.appendChild(throttleMsg);
+    dropdown.style.display='block';
     return;
   }
   markAiCallTime();
@@ -3419,6 +3468,27 @@ function saveMeal(){
   saveAllFood(false);
 }
 
+function updateFoodSummaryCard(total){
+  // Lightweight update of just the "Today so far" summary card after a save,
+  // without rebuilding the whole food form (which would kill in-flight searches).
+  var kcalEl=document.querySelector('#food-summary-kcal');
+  var barEl=document.querySelector('#food-summary-bar');
+  var pctEl=document.querySelector('#food-summary-pct');
+  var listEl=document.querySelector('#food-summary-list');
+  if(kcalEl)kcalEl.textContent=total+' kcal';
+  if(barEl)barEl.style.width=Math.min(100,Math.round(total/KT*100))+'%';
+  if(pctEl)pctEl.textContent=Math.min(100,Math.round(total/KT*100))+'%';
+  if(listEl){
+    listEl.innerHTML='';
+    fSavedMeals.forEach(function(m){
+      var r=D('');r.style.cssText='display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--bd)';
+      r.appendChild(T('span','',m.name));
+      var kEl=T('span','',(m.kcal||0)+' kcal');kEl.style.cssText='font-size:12px;color:var(--mu)';
+      r.appendChild(kEl);listEl.appendChild(r);
+    });
+  }
+}
+
 function saveAllFood(goToDayAfter){
   // If there are items added via search-and-quantity but the user tapped
   // "Save food log" directly without first tapping "Save meal", fold them in
@@ -3437,7 +3507,10 @@ function saveAllFood(goToDayAfter){
     return a+(m.items?m.items.reduce(function(b,i){return b+(i.p||0);},0):0);
   },0));
   saveDay(sd,{food:{meals:fSavedMeals,kcal:total,water:fWater,caffeine:caff,protein:fProtein,proteinG:totalProteinG}},function(){
-    if(goToDayAfter){goBack('s-day');}else{buildFoodForm();}
+    if(goToDayAfter){goBack('s-day');return;}
+    // Update just the Today so far summary without rebuilding the whole form
+    // (which would kill in-flight Gemini search responses via fSearchGeneration)
+    updateFoodSummaryCard(total);
   });
 }
 
